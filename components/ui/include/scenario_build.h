@@ -1,7 +1,7 @@
 // components/ui/scenario_build.h
 // Set exactly one flag to 1, the others to 0
-#define UI_SCENARIO_ALBUM   0
-#define UI_SCENARIO_TRAVEL  1
+#define UI_SCENARIO_ALBUM   1
+#define UI_SCENARIO_TRAVEL  0
 
 /* --------------------------------------------------------------------------
  * HOW TO ADD A SCENARIO (example):
