@@ -6,7 +6,7 @@
 static const char *TAG = "UIIMG";
 
 #ifndef ASSETS_SUBDIR
-#define ASSETS_SUBDIR "assets_alb"  
+#define ASSETS_SUBDIR "assets_third"  
 #endif
 
 static void map_path(char *dst, size_t dst_sz, const char *src)
@@ -18,9 +18,9 @@ static void map_path(char *dst, size_t dst_sz, const char *src)
         const char *assets = "assets/";
         const size_t assets_len = 7;
 
-        if (strstr(p, "ui_img_1049104300.bin")) {
-            snprintf(dst, dst_sz, "/spiffs/%s", p);     
-            return;
+        if (strstr(p, "ui_img_arrow_png.bin")) {
+        snprintf(dst, dst_sz, "/spiffs/%s", p);
+        return;
         }
 
         if (strncmp(p, assets, assets_len) == 0) {

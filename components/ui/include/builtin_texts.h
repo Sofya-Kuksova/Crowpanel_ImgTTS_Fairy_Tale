@@ -18,6 +18,23 @@ typedef enum {
     CASE_TXT_12,
     CASE_TXT_13,
     CASE_TXT_14,
+    CASE_TXT_15,
+    CASE_TXT_16,
+    CASE_TXT_17,
+    CASE_TXT_18,
+    CASE_TXT_19,
+    CASE_TXT_20,
+    CASE_TXT_21,
+    CASE_TXT_22,
+    CASE_TXT_23,
+    CASE_TXT_24,
+    CASE_TXT_25,
+    CASE_TXT_26,
+    CASE_TXT_27,
+    CASE_TXT_28,
+    CASE_TXT_29,
+    CASE_TXT_30,
+    CASE_TXT_31,
     CASE_TXT_COUNT /* maximum slots available in UI wiring */
 } builtin_text_case_t;
 

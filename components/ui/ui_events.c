@@ -67,17 +67,32 @@ void on_btn_say_pressed(lv_event_t * e)
 {
     (void)e;
     const char* text = get_builtin_text();
-    lv_obj_add_state(ui_btnsay, LV_STATE_DISABLED);  
+    // lv_obj_add_state(ui_btnsay, LV_STATE_DISABLED);  
     start_tts_playback_c(text);
 }
 
 static void ui_notify_tts_finished_async(void *arg)
 {
     (void)arg;
-    lv_obj_clear_state(ui_btnsay, LV_STATE_DISABLED);
+    // lv_obj_clear_state(ui_btnsay, LV_STATE_DISABLED);
 }
 
 void ui_notify_tts_finished(void)
 {
     lv_async_call(ui_notify_tts_finished_async, NULL);
+}
+
+void button_choose_1(lv_event_t * e)
+{
+	// Your code here
+}
+
+void button_choose_2(lv_event_t * e)
+{
+	// Your code here
+}
+
+void button_choose_end(lv_event_t * e)
+{
+	// Your code here
 }
