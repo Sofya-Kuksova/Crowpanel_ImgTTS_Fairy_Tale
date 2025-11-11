@@ -17,6 +17,8 @@ void button_choose_1(lv_event_t * e);
 void button_choose_2(lv_event_t * e);
 void button_choose_end(lv_event_t * e);
 
+void ui_story_start(void);
+
 #ifdef __cplusplus
 }
 #endif

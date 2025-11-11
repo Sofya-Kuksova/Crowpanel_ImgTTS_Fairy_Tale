@@ -27,6 +27,7 @@ set(UI_COMMON_SRCS
   ui_img_manager.c
   ui_img_arrow_png.c
   tts_bridge_impl.c
+  story_fairy_tale.c
 )
 
 # ------------------------------------------------------------------------------

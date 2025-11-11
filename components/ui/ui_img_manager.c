@@ -6,7 +6,7 @@
 static const char *TAG = "UIIMG";
 
 #ifndef ASSETS_SUBDIR
-#define ASSETS_SUBDIR "assets_third"  
+#define ASSETS_SUBDIR "assets_fairy_tale"  
 #endif
 
 static void map_path(char *dst, size_t dst_sz, const char *src)

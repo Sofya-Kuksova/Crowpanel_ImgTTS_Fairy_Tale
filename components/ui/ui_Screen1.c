@@ -114,7 +114,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_width(ui_LabelQ, 357);
     lv_obj_set_height(ui_LabelQ, 29);
     lv_obj_set_align(ui_LabelQ, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_LabelQ, "What should she do next ?");
+    lv_label_set_text(ui_LabelQ, "");
     lv_obj_set_style_text_color(ui_LabelQ, lv_color_hex(0xF5F3C5), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelQ, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_LabelQ, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -156,7 +156,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_x(ui_LabelCh1, 22);
     lv_obj_set_y(ui_LabelCh1, 23);
     lv_obj_set_align(ui_LabelCh1, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_LabelCh1, "Prepare a surprise:clean and decorate the house");
+    lv_label_set_text(ui_LabelCh1, "");
     lv_obj_set_style_text_color(ui_LabelCh1, lv_color_hex(0xF5F3C5), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelCh1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_LabelCh1, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -181,7 +181,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_x(ui_LabelCh2, 4);
     lv_obj_set_y(ui_LabelCh2, 7);
     lv_obj_set_align(ui_LabelCh2, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_LabelCh2, "Look around the outside to make sure it's safe");
+    lv_label_set_text(ui_LabelCh2, "");
     lv_obj_set_style_text_color(ui_LabelCh2, lv_color_hex(0xF5F3C5), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelCh2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_LabelCh2, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -202,7 +202,7 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_width(ui_LabelEnd, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelEnd, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(ui_LabelEnd, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_LabelEnd, "It was wonderfull story! Try Again");
+    lv_label_set_text(ui_LabelEnd, "");
     lv_obj_set_style_text_color(ui_LabelEnd, lv_color_hex(0xF5F3C5), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelEnd, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_LabelEnd, &ui_font_Font2, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -244,7 +244,7 @@ void ui_Screen1_screen_init(void)
 // lv_obj_clear_flag(ui_end, LV_OBJ_FLAG_HIDDEN);
 
 
-    apply_image_for_case(builtin_text_get());
+    ui_story_start();
 }
 
 void ui_Screen1_screen_destroy(void)

@@ -3,160 +3,175 @@
 
 /* Scenario: THIRD — 3 sample texts (you can add more or less). */
 static const char* kThirdTexts[] = {
-    // CASE_TXT_01
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+     // A (CASE_TXT_01)
+    "Once upon a time, there lived a young princess named Snow White.\n"
+    "She lived with her stepmother, the evil Queen, who every day asked her mirror.\n"
+    "Mirror, mirror on the wall, who is the fairest one of all?\n"
+    "When the mirror replied that Snow White was the fairest, the Queen flew into a rage, and ordered a servant to take the princess into the forest.\n"
+    "The servant took pity on her and said. Run, princess, hide where no one will find you!",
 
-    // CASE_TXT_02
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1 (CASE_TXT_02)
+    "Snow White walked along the soft path until she saw a little house among the flowers.\n"
+    "Smoke rose from the chimney, and the door was slightly ajar.\n"
+    "Everything looked cozy and calm, as if the cottage was waiting for her.",
 
-    // CASE_TXT_03
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2 (CASE_TXT_03)
+    "Snow White approached the waterfall. The air was fresh, and the sound of the water was soothing.\n"
+    "A deer stood nearby, beautiful and kind, it was not afraid of her.\n"
+    "Snow White felt that magic lived in this place.",
 
-      // CASE_TXT_04
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_1 (CASE_TXT_04)
+    "Everything was so tiny and neat!\n"
+    "Snow White whispered. Children or magical creatures must live here.\n"
+    "She decided to do a kind deed for the owners.",
 
-    // CASE_TXT_05
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-    // CASE_TXT_06
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_2 (CASE_TXT_05)
+    "Snow White looked around the cottage but saw no one.\n"
+    "A basket of apples lay on the stump, and a lantern was nearby.\n"
+    "She sat down and thought. Maybe the owners will be back soon?",
 
-      // CASE_TXT_07
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-    // CASE_TXT_08
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2_1 (CASE_TXT_06)
+    "Snow White followed the deer.\n"
+    "It walked calmly, as if it knew the way for sure.\n"
+    "Soon they came to a clearing where a cottage with a light in the window was visible.",
 
-    // CASE_TXT_09
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-      // CASE_TXT_10
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2_2 (CASE_TXT_07)
+    "Snow White lit a campfire and warmed her hands.\n"
+    "The stares glowed in the sky, and she felt at peace.\n"
+    "But suddenly, an old woman with a basket of apples emerged from the darkness and smiled.",
 
-    // CASE_TXT_11
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-    // CASE_TXT_12
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_1_1 (CASE_TXT_08)
+    "Snow White baked pies and set the table.\n"
+    "Suddenly, the door creaked, someone was coming home.\n"
+    "Snow White smiled, but her heart beat faster.",
 
-      // CASE_TXT_13
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_1_2 (CASE_TXT_09)
+    "Snow White slept peacefully.\n"
+    "At that time, the dwarves quietly entered the house, surprised by the stranger.\n"
+    "One whispered. Maybe she's a kind fairy?",
 
-    // CASE_TXT_14
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_2_1 (CASE_TXT_10)
+    "Snow White waited for someone to return.\n"
+    "The forest grew dark, and an owl hooted softly.\n"
+    "Suddenly, laughter and footsteps came from the forest.",
 
-    // CASE_TXT_15
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B1_2_2 (CASE_TXT_11)
+    "Snow White entered the house. It was warm and cozy.\n"
+    "Photos hung on the wall, books were on a shelf.\n"
+    "She whispered. Wow! What a neat person must live in here!",
 
-      // CASE_TXT_16
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2_1_1 (CASE_TXT_12)
+    "Snow White knocked.\n"
+    "At first it was dead silence, then she heard quiet footsteps.\n"
+    "Who's there? A childlike voice asked.",
 
-    // CASE_TXT_17
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2_1_2 (CASE_TXT_13)
+    "She saw seven little dwarves having dinner after work.\n"
+    "They seemed kind and cheerful.\n"
+    "Snow White felt that she would be happy here.",
 
-    // CASE_TXT_18
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // B2_2_1 (CASE_TXT_14)
+    "Snow White smiled politely and said. Good evening, grandmother.\n"
+    "The old woman held out an apple to her and whispered. Take it, it's magical.\n"
+    "But something quivered in the air, the forest seemed to freeze.",
 
-       // CASE_TXT_19
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+     // B2_2_2 (CASE_TXT_15)
+    "Snow White hid and watched.\n"
+    "The old woman looked around and disappeared into the darkness.",
 
-    // CASE_TXT_20
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D1 (CASE_TXT_16)
+    "When the dwarves returned, the house smelled of vanilla and honey, and a stranger named Snow .\n"
+    "White was waiting for them at the table. She asked for shelter, and the dwarves gladly agreed.\n"
+    "From then on, Snow White kept their house, and in the evenings they all sang songs together, making the forest feel brighter.",
 
-    // CASE_TXT_21
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D2 (CASE_TXT_17)
+    "The dwarves were delighted by the unexpected celebration and immediately offered Snow White their friendship.\n"
+    "After hearing her sad story, they took her to an empty castle, where all the inhabitants immediately loved the kind princess.\n"
+    "In gratitude, Snow White threw a real feast for her little friends, and their friendship lasted for many years.",
 
-         // CASE_TXT_22
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-    // CASE_TXT_23
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D3 (CASE_TXT_18)
+    "After hearing Snow White's story, the dwarves learned that the evil mirror had enchanted the Queen.\n"
+    "They immediately smashed it, and the magic dissipated. The repentant Queen asked for forgiveness, and the kind-hearted Snow White forgave her.\n"
+    "From then on, the castle was filled not with orders, but with love and true happiness.",
 
-    // CASE_TXT_24
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
     
-    // CASE_TXT_25
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D4 (CASE_TXT_19)
+    "The dwarfs did not wake the sleeping girl but left her breakfast by the bed.\n"
+    "When she awoke, Snow White smiled, realizing that kindness had found her even in the deepest forest.\n"
+    "And from that day on, the little house became her home, a place of peace and quiet joy.",
 
-    // CASE_TXT_26
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D5 (CASE_TXT_20)
+    "Snow White stepped forward bravely. My name is Snow White. I'm lost in the forest.\n"
+    "The prince smiled. I've been looking for you for several days. The King is worried!\n"
+    "He took her home, where her father embraced his daughter, overcome with joy.",
 
-    // CASE_TXT_27
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D6 (CASE_TXT_21)
+    "Snow White hid, but an owl suddenly hooted loudly, and the dwarves turned around.\n"
+    "Look, someone's there! One shouted. Snow White came out, smiling sheepishly.\n"
+    "It turned out the dwarves were enchanted and waiting for a princess to break the spell. The eldest brother married his savior, and their lives were filled with happiness in a distant kingdom.",
 
-    // CASE_TXT_28
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
 
-    // CASE_TXT_29
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D7 (CASE_TXT_22)
+    "When Snow White finished decorating the house, the mirror came to life.\n"
+    "Her kind heart was rewarded, the magic mirror brought her father back. It turned out the evil Queen was imprisoned forever in the mirror for her envy.\n"
+    "Snow White and the King were reunited and lived happily ever after in the castle.",
 
-    // CASE_TXT_30
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+    // D8 (CASE_TXT_23)
+    "She waited quietly, listening to the crackle of the fire.\n"
+    "When dawn came, the room filled with the scent of flowers, and green shoots rose from the floor like living light.\n"
+    "The forest had given her a gift, a garden to call her home.",
 
-     // CASE_TXT_31
-    "Row 1.\n"
-    "Row 2.\n"
-    "Row 3.",
+
+    // D9 (CASE_TXT_24)
+    "Snow White knocked gently and said. It's me, I mean no harm.\n"
+    "The door opened, and a kind young prince smiled and invited her inside.\n"
+    "He listened to her story, and before the night was over, he had already fallen in love.",
+
+    // D10 (CASE_TXT_25)
+    "At sunrise, the forest turned into light and song.\n"
+    "The house she feared became her father's garden, and the deer she trusted turned into a young spirit who smiled and vanished.\n"
+    "Snow White stepped forward, no longer lost, but finally home.",
+
+     // D11 (CASE_TXT_26)
+    "Snow White knocked, and the door opened.\n"
+    "Come in, dear, you're like a ray of sunshine in our home, said one dwarf. The kind dwarves turned out to be stars from the Little Dipper.\n"
+    "They gave Snow White a magic ring as a farewell gift. It could transport her anywhere in an instant. With this gift, the dark forest no longer frightened the girl, for a whole life of adventure lay ahead.",
+
+
+  // D12 (CASE_TXT_27)
+    "Snow White did not enter, it was enough for her to see the light and hear the laughter.\n"
+    "But then came the clatter of hooves and the sound of a hunting horn. A black stallion with a rider in dark robes jumped onto the path. It was the Night Prince, the ruler of the dark forest.\n"
+    "He took Snow White away with him. However, the stern ruler quickly succumbed to the charm of the kind and cheerful girl. Soon they became inseparable companions on their nightly journeys.",
+
+    
+  // D13 (CASE_TXT_28)
+    "Snow White recognized the Queen and accepted her gift with kindness, thus breaking the evil spell.\n"
+    "The touched Queen repented and offered to grow a whole orchard instead of the poisoned apple.\n"
+    "Snow White forgave her, still she hid the apple in a casket as a reminder of the wonderful reconciliation.",
+
+
+    // D14 (CASE_TXT_29)
+    "Snow White refused the magic, and the old woman turned out to be a kind fairy.\n"
+    "As a reward for her honesty, the fairy left her a magic flower.\n"
+    "Snow White planted it, and by morning a garden and a cottage had grown, where she began helping lost travelers find their way home.",
+
+
+    // D15 (CASE_TXT_30)
+    "Snow White followed the trail until the old woman led her back to the castle. There she turned into the Queen, and Snow White realized that her stepmother was a witch. \n"
+    "Long ago, her own mother had said that against dark magic there was only one remedy, a song coming from the heart. Casting aside fear and doubt, Snow White emerged from her hiding place and began a lovely song.\n"
+    "At first her voice trembled, but then skylarks and nightingales joined in. Soon the whole area rang with a pure melody. And the Queen and her evil mirror vanished, as if they had never existed.",
+
+
+    // D16 (CASE_TXT_31)
+    "At dawn, the forest awoke to gentle light and the song of birds. \n"
+    "By the shining waterfall, Snow White met her father, who had searched for her through the night.\n"
+    "They embraced, and the morning sun rose, warm, bright, and full of peace.",
+    
 };
 
 static _Atomic(builtin_text_case_t) s_current_case = CASE_TXT_01;

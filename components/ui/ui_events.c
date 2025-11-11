@@ -1,23 +1,31 @@
 #include "ui_events.h"
-#include "ui.h"                 
+#include "ui.h"
 #include "tts_bridge.h"
 #include "builtin_texts.h"
 #include "esp_log.h"
 #include "lvgl.h"
-#include "visuals.h" 
+#include "visuals.h"
+#include "esp_heap_caps.h"
+#include "story_fairy_tale.h"
 
-#include "esp_heap_caps.h"  
-
+static builtin_text_case_t s_current = STORY_START_CASE;
+static lv_timer_t* s_tts_timer = NULL;
 static const char* TAG_UI = "ui_events";
 
+// ---- ПРОТОТИПЫ СТАТИЧЕСКИХ ФУНКЦИЙ (ВАЖНО!)
+static void update_question_and_choices(const story_node_t* node);
+static void show_case(builtin_text_case_t c);
+static void tts_timer_cb(lv_timer_t* t);
+static void schedule_tts_after_delay(void);
+static void ui_notify_tts_finished_async(void *arg);
 
+// ---- Картинки/память
 static void free_all_images_except(const lv_img_dsc_t* except_dsc)
 {
     for (int i = 0; i < CASE_TXT_COUNT; ++i) {
         const lv_img_dsc_t* d = kVisuals[i].img;
         if (!d || d == except_dsc) continue;
-        if (is_pinned_image(d)) continue;        
-
+        if (is_pinned_image(d)) continue;
         if (d->data) {
             ESP_LOGD(TAG_UI, "free image buffer: %p (case %d)", d->data, i);
             heap_caps_free((void*)d->data);
@@ -45,7 +53,7 @@ void apply_image_for_case(builtin_text_case_t c)
     if (v.img)  lv_img_set_src(ui_Img, v.img);
 
     if (cur_dsc && cur_dsc != v.img && cur_dsc->data) {
-        if (!is_pinned_image(cur_dsc)) {         
+        if (!is_pinned_image(cur_dsc)) {
             ESP_LOGD(TAG_UI, "free previous image buffer: %p", cur_dsc->data);
             heap_caps_free((void*)cur_dsc->data);
             ((lv_img_dsc_t*)cur_dsc)->data = NULL;
@@ -54,6 +62,7 @@ void apply_image_for_case(builtin_text_case_t c)
     }
 }
 
+// ---- Кнопки "служебные"
 void on_btn_change_pressed(lv_event_t * e)
 {
     (void)e;
@@ -67,14 +76,15 @@ void on_btn_say_pressed(lv_event_t * e)
 {
     (void)e;
     const char* text = get_builtin_text();
-    // lv_obj_add_state(ui_btnsay, LV_STATE_DISABLED);  
     start_tts_playback_c(text);
 }
 
+// ---- Событие "TTS закончил"
 static void ui_notify_tts_finished_async(void *arg)
 {
     (void)arg;
-    // lv_obj_clear_state(ui_btnsay, LV_STATE_DISABLED);
+    const story_node_t* node = story_get_node(s_current);
+    update_question_and_choices(node);
 }
 
 void ui_notify_tts_finished(void)
@@ -82,17 +92,77 @@ void ui_notify_tts_finished(void)
     lv_async_call(ui_notify_tts_finished_async, NULL);
 }
 
+// ---- Обработчики выбора
 void button_choose_1(lv_event_t * e)
 {
-	// Your code here
+    (void)e;
+    const story_node_t* node = story_get_node(s_current);
+    if (!node || node->is_final) return;
+    show_case(node->next1);
 }
 
 void button_choose_2(lv_event_t * e)
 {
-	// Your code here
+    (void)e;
+    const story_node_t* node = story_get_node(s_current);
+    if (!node || node->is_final) return;
+    show_case(node->next2);
 }
 
 void button_choose_end(lv_event_t * e)
 {
-	// Your code here
+    (void)e;
+    // опционально: перезапуск истории
+    // show_case(STORY_START_CASE);
+}
+
+// ---- Тексты вопроса/вариантов (показываем ТОЛЬКО после TTS)
+static void update_question_and_choices(const story_node_t* node)
+{
+    if (!ui_LabelQ || !ui_LabelCh1 || !ui_LabelCh2) return;
+    if (!node || node->is_final) {
+        lv_label_set_text(ui_LabelQ,  "");
+        lv_label_set_text(ui_LabelCh1,"");
+        lv_label_set_text(ui_LabelCh2,"");
+        return;
+    }
+    lv_label_set_text(ui_LabelQ,  node->question ? node->question : "");
+    lv_label_set_text(ui_LabelCh1,node->choice1  ? node->choice1  : "");
+    lv_label_set_text(ui_LabelCh2,node->choice2  ? node->choice2  : "");
+}
+
+// ---- Отложенный запуск TTS (1 сек после смены картинки)
+static void tts_timer_cb(lv_timer_t* t)
+{
+    (void)t;
+    const char* text = get_builtin_text();
+    start_tts_playback_c(text);
+}
+
+static void schedule_tts_after_delay(void)
+{
+    if (s_tts_timer) { lv_timer_del(s_tts_timer); s_tts_timer = NULL; }
+    s_tts_timer = lv_timer_create(tts_timer_cb, 1000 /* ms */, NULL);
+    lv_timer_set_repeat_count(s_tts_timer, 1);
+}
+
+// ---- Показ кейса: картинка → (1с) → TTS → (после) вопрос/выборы
+static void show_case(builtin_text_case_t c)
+{
+    s_current = c;
+    builtin_text_set(c);
+    apply_image_for_case(c);
+
+    // До конца TTS поля пустые и кнопки скрыты
+    lv_label_set_text(ui_LabelQ,  "");
+    lv_label_set_text(ui_LabelCh1,"");
+    lv_label_set_text(ui_LabelCh2,"");
+
+    schedule_tts_after_delay();
+}
+
+// ---- Старт истории
+void ui_story_start(void)
+{
+    show_case(STORY_START_CASE);
 }
