@@ -124,11 +124,15 @@ static void update_question_and_choices(const story_node_t* node)
         lv_label_set_text(ui_LabelQ,  "");
         lv_label_set_text(ui_LabelCh1,"");
         lv_label_set_text(ui_LabelCh2,"");
+           lv_obj_clear_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
         return;
     }
     lv_label_set_text(ui_LabelQ,  node->question ? node->question : "");
     lv_label_set_text(ui_LabelCh1,node->choice1  ? node->choice1  : "");
     lv_label_set_text(ui_LabelCh2,node->choice2  ? node->choice2  : "");
+        lv_obj_clear_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ---- Отложенный запуск TTS (1 сек после смены картинки)
@@ -137,26 +141,45 @@ static void tts_timer_cb(lv_timer_t* t)
     (void)t;
     const char* text = get_builtin_text();
     start_tts_playback_c(text);
+
+    // Удаляем ТОЛЬКО здесь, чтобы исключить двойное освобождение
+    if (s_tts_timer) {
+        lv_timer_del(s_tts_timer);
+        s_tts_timer = NULL;
+    }
 }
 
 static void schedule_tts_after_delay(void)
 {
-    if (s_tts_timer) { lv_timer_del(s_tts_timer); s_tts_timer = NULL; }
-    s_tts_timer = lv_timer_create(tts_timer_cb, 1000 /* ms */, NULL);
-    lv_timer_set_repeat_count(s_tts_timer, 1);
+    if (!s_tts_timer) {
+        s_tts_timer = lv_timer_create(tts_timer_cb, 1000 /* ms */, NULL);
+        // не используем repeat_count=1, сами удалим таймер в callback
+        lv_timer_pause(s_tts_timer);      // на всякий случай — стартуем «на паузе»
+    }
+
+    lv_timer_set_period(s_tts_timer, 1000);
+    lv_timer_reset(s_tts_timer);          // сбрасываем оставшееся время
+    lv_timer_resume(s_tts_timer);         // запускаем
 }
+
 
 // ---- Показ кейса: картинка → (1с) → TTS → (после) вопрос/выборы
 static void show_case(builtin_text_case_t c)
 {
     s_current = c;
     builtin_text_set(c);
+
+// lv_refr_now(NULL);
+
     apply_image_for_case(c);
 
     // До конца TTS поля пустые и кнопки скрыты
     lv_label_set_text(ui_LabelQ,  "");
     lv_label_set_text(ui_LabelCh1,"");
     lv_label_set_text(ui_LabelCh2,"");
+
+     lv_obj_add_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
 
     schedule_tts_after_delay();
 }
