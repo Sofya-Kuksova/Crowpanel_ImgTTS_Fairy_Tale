@@ -7,7 +7,7 @@ static const char* kThirdTexts[] = {
     "Once upon a time, there lived a young princess named Snow White.\n"
     "She lived with her stepmother, the evil Queen, who every day asked her mirror.\n"
     "Mirror, mirror on the wall, who is the fairest one of all?\n"
-    "When the mirror replied that Snow White was the fairest, the Queen flew into a rage, and ordered a servant to take the princess into the forest.\n"
+    "When the mirror replied that Snow White was the fairest, the Queen flew into a rage and order a servant to take the princess into the forest.\n"
     "The servant took pity on her and said. Run, princess, hide where no one will find you!",
 
     // B1 (CASE_TXT_02)
@@ -35,7 +35,7 @@ static const char* kThirdTexts[] = {
     // B2_1 (CASE_TXT_06)
     "Snow White followed the deer.\n"
     "It walked calmly, as if it knew the way for sure.\n"
-    "Soon they came to a clearing where a cottage with a light in the window was visible.",
+    "Soon they came to a clearing, where a cottage with a light in the window was visible.",
 
 
     // B2_2 (CASE_TXT_07)
@@ -51,7 +51,7 @@ static const char* kThirdTexts[] = {
 
     // B1_1_2 (CASE_TXT_09)
     "Snow White slept peacefully.\n"
-    "At that time, the dwarves quietly entered the house, surprised by the stranger.\n"
+    "At that time, the dwarfs quietly entered the house, surprised by the stranger.\n"
     "One whispered. Maybe she's a kind fairy?",
 
     // B1_2_1 (CASE_TXT_10)
@@ -70,9 +70,9 @@ static const char* kThirdTexts[] = {
     "Who's there? A childlike voice asked.",
 
     // B2_1_2 (CASE_TXT_13)
-    "She saw seven little dwarves having dinner after work.\n"
+    "She saw seven little dwarfs, having dinner after work.\n"
     "They seemed kind and cheerful.\n"
-    "Snow White felt that she would be happy here.",
+    "Snow White felt, that she would be happy here.",
 
     // B2_2_1 (CASE_TXT_14)
     "Snow White smiled politely and said. Good evening, grandmother.\n"
@@ -84,25 +84,25 @@ static const char* kThirdTexts[] = {
     "The old woman looked around and disappeared into the darkness.",
 
     // D1 (CASE_TXT_16)
-    "When the dwarves returned, the house smelled of vanilla and honey, and a stranger named Snow .\n"
-    "White was waiting for them at the table. She asked for shelter, and the dwarves gladly agreed.\n"
-    "From then on, Snow White kept their house, and in the evenings they all sang songs together, making the forest feel brighter.",
+    "When the dwarfs returned, the house smelled of vanilla and honey, and a stranger named Snow White was waiting for them at the table.\n"
+    "She asked for shelter, and the dwarfs gladly agreed.\n"
+    "From then on, Snow White kept their house. And in the evenings they all sang songs together, making the forest feel brighter.",
 
     // D2 (CASE_TXT_17)
-    "The dwarves were delighted by the unexpected celebration and immediately offered Snow White their friendship.\n"
+    "The dwarfs were delighted by the unexpected celebration and immediately offered Snow White their friendship.\n"
     "After hearing her sad story, they took her to an empty castle, where all the inhabitants immediately loved the kind princess.\n"
     "In gratitude, Snow White threw a real feast for her little friends, and their friendship lasted for many years.",
 
 
     // D3 (CASE_TXT_18)
-    "After hearing Snow White's story, the dwarves learned that the evil mirror had enchanted the Queen.\n"
+    "After hearing Snow White's story, the dwarfs learned that the evil mirror had enchanted the Queen.\n"
     "They immediately smashed it, and the magic dissipated. The repentant Queen asked for forgiveness, and the kind-hearted Snow White forgave her.\n"
     "From then on, the castle was filled not with orders, but with love and true happiness.",
 
     
     // D4 (CASE_TXT_19)
-    "The dwarfs did not wake the sleeping girl but left her breakfast by the bed.\n"
-    "When she awoke, Snow White smiled, realizing that kindness had found her even in the deepest forest.\n"
+    "The dwarfs did not wake the sleeping girl, but left her breakfast by the bed.\n"
+    "When she awoke, Snow White smiled, realizing that kindness had found her, even in the deepest forest.\n"
     "And from that day on, the little house became her home, a place of peace and quiet joy.",
 
     // D5 (CASE_TXT_20)
@@ -111,19 +111,19 @@ static const char* kThirdTexts[] = {
     "He took her home, where her father embraced his daughter, overcome with joy.",
 
     // D6 (CASE_TXT_21)
-    "Snow White hid, but an owl suddenly hooted loudly, and the dwarves turned around.\n"
+    "Snow White hid, but an owl suddenly hooted loudly, and the dwarfs turned around.\n"
     "Look, someone's there! One shouted. Snow White came out, smiling sheepishly.\n"
-    "It turned out the dwarves were enchanted and waiting for a princess to break the spell. The eldest brother married his savior, and their lives were filled with happiness in a distant kingdom.",
+    "It turned out, the dwarfs were enchanted and waiting for a princess to break the spell. The eldest brother married his savior, and their lives were filled with happiness in a distant kingdom.",
 
 
     // D7 (CASE_TXT_22)
     "When Snow White finished decorating the house, the mirror came to life.\n"
     "Her kind heart was rewarded, the magic mirror brought her father back. It turned out the evil Queen was imprisoned forever in the mirror for her envy.\n"
-    "Snow White and the King were reunited and lived happily ever after in the castle.",
+    "Snow White and the King were reunited, and lived happily ever after in the castle.",
 
     // D8 (CASE_TXT_23)
     "She waited quietly, listening to the crackle of the fire.\n"
-    "When dawn came, the room filled with the scent of flowers, and green shoots rose from the floor like living light.\n"
+    "When dawn came, the room filled with the scent of flowers, and green shoots rose from the floor like alive light.\n"
     "The forest had given her a gift, a garden to call her home.",
 
 
@@ -134,12 +134,12 @@ static const char* kThirdTexts[] = {
 
     // D10 (CASE_TXT_25)
     "At sunrise, the forest turned into light and song.\n"
-    "The house she feared became her father's garden, and the deer she trusted turned into a young spirit who smiled and vanished.\n"
+    "The house she feared became her father's garden, and the deer she trusted, turned into a young spirit, who smiled and vanished.\n"
     "Snow White stepped forward, no longer lost, but finally home.",
 
      // D11 (CASE_TXT_26)
     "Snow White knocked, and the door opened.\n"
-    "Come in, dear, you're like a ray of sunshine in our home, said one dwarf. The kind dwarves turned out to be stars from the Little Dipper.\n"
+    "Come in, dear, you're like a ray of sunshine in our home, said one dwarf. The kind dwarfs turned out to be stars from the Little Dipper.\n"
     "They gave Snow White a magic ring as a farewell gift. It could transport her anywhere in an instant. With this gift, the dark forest no longer frightened the girl, for a whole life of adventure lay ahead.",
 
 
@@ -150,8 +150,8 @@ static const char* kThirdTexts[] = {
 
     
   // D13 (CASE_TXT_28)
-    "Snow White recognized the Queen and accepted her gift with kindness, thus breaking the evil spell.\n"
-    "The touched Queen repented and offered to grow a whole orchard instead of the poisoned apple.\n"
+    "Snow White recognized the Queen, and accepted her gift with kindness, thus breaking the evil spell.\n"
+    "The touched Queen repented, and offered to grow a whole orchard instead of the poisoned apple.\n"
     "Snow White forgave her, still she hid the apple in a casket as a reminder of the wonderful reconciliation.",
 
 
@@ -163,14 +163,14 @@ static const char* kThirdTexts[] = {
 
     // D15 (CASE_TXT_30)
     "Snow White followed the trail until the old woman led her back to the castle. There she turned into the Queen, and Snow White realized that her stepmother was a witch. \n"
-    "Long ago, her own mother had said that against dark magic there was only one remedy, a song coming from the heart. Casting aside fear and doubt, Snow White emerged from her hiding place and began a lovely song.\n"
+    "Long ago, her own mother had said that against dark magic there was only one remedy, a song from the heart. Casting aside fear and doubt, Snow White emerged from her hiding place and began a lovely song.\n"
     "At first her voice trembled, but then skylarks and nightingales joined in. Soon the whole area rang with a pure melody. And the Queen and her evil mirror vanished, as if they had never existed.",
 
 
     // D16 (CASE_TXT_31)
     "At dawn, the forest awoke to gentle light and the song of birds. \n"
     "By the shining waterfall, Snow White met her father, who had searched for her through the night.\n"
-    "They embraced, and the morning sun rose, warm, bright, and full of peace.",
+    "They embraced, and the morning sun rose. Warm, bright, and full of peace.",
     
 };
 
