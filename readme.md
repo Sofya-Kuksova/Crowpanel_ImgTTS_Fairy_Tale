@@ -1,4 +1,4 @@
-# CrowPanel Image TTS Cards — ESP32-S3 Firmware for Voicing Fairy-Tale Photo Cards via tinyTTS
+# CrowPanel Image TTS Cards — ESP32-S3 Firmware for Voicing Fairy-Tale via tinyTTS
 
 **Summary.** Firmware for the ELECROW CrowPanel Advance 5.0 (ESP32-S3, 800×480) with an LVGL UI that displays fairy-tale photo cards and plays the text associated with each card through the tinyTTS module over UART.  
 The application operates on a single **Image screen**: it shows the current card image, automatically narrates a fragment of the story, and then offers two interactive choices that guide the branching storyline.
