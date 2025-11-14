@@ -1,7 +1,6 @@
 #include "story_fairy_tale.h"
 #include <stddef.h>
 
-// Удобные псевдонимы (см. visuals_fairy_tale.c — соответствие картинок индексам)
 #define A       CASE_TXT_01
 #define B1      CASE_TXT_02
 #define B2      CASE_TXT_03
@@ -17,7 +16,7 @@
 #define B2_1_2  CASE_TXT_13
 #define B2_2_1  CASE_TXT_14
 #define B2_2_2  CASE_TXT_15
-// Финалы D1..D16:
+
 #define D1      CASE_TXT_16
 #define D2      CASE_TXT_17
 #define D3      CASE_TXT_18
@@ -167,8 +166,6 @@ static const story_node_t NODES[CASE_TXT_COUNT] = {
     },
 
 
-
-    // Финальный уровень: только Narrator Text, без вопроса/выборов
     [D1]  = { .question = "", .choice1 = "", .choice2 = "", .is_final = true },
     [D2]  = { .question = "", .choice1 = "", .choice2 = "", .is_final = true },
     [D3]  = { .question = "", .choice1 = "", .choice2 = "", .is_final = true },

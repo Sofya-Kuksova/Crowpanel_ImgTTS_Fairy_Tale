@@ -1,3 +1,3 @@
 # Flash tool
+This tool flashes prebuilt images from the `./binaries` directory with hardcoded parameters corresponding to the flash layout of the project. Select the COM port from the offered options.
 
-This utility flashes prebuilt images from `./binaries_x*` using hard-coded parameters that match the project’s flash layout. Select the COM port and choose a card scenario from the offered options.

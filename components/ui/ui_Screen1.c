@@ -239,17 +239,6 @@ void ui_Screen1_screen_init(void)
     lv_obj_add_event_cb(ui_choice2, ui_event_choice2, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_end, ui_event_end, LV_EVENT_ALL, NULL);
 
-    // Спрятать варианты и панель с вопросом
-// lv_obj_add_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
-// lv_obj_add_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
-// lv_obj_add_flag(ui_PanelQ,  LV_OBJ_FLAG_HIDDEN);
-// lv_obj_add_flag(ui_Image6,  LV_OBJ_FLAG_HIDDEN);
-// lv_obj_add_flag(ui_Image7,  LV_OBJ_FLAG_HIDDEN);
-
-// // Показать кнопку "конец" (она создаётся со флагом HIDDEN)
-// lv_obj_clear_flag(ui_end, LV_OBJ_FLAG_HIDDEN);
-
-
     ui_story_start();
 }
 

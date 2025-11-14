@@ -7,22 +7,19 @@
 #include "visuals.h"
 #include "esp_heap_caps.h"
 #include "story_fairy_tale.h"
-#include <stdbool.h>  // ← на всякий случай (bool)
+#include <stdbool.h> 
 
 static builtin_text_case_t s_current = STORY_START_CASE;
 static lv_timer_t* s_tts_timer = NULL;
 static const char* TAG_UI = "ui_events";
 
-// ---- ПРОТОТИПЫ СТАТИЧЕСКИХ ФУНКЦИЙ (ВАЖНО!)
-static void set_end_ui(bool on);  // ← ДОБАВЛЕНО! объявляем до первого вызова
+static void set_end_ui(bool on); 
 static void update_question_and_choices(const story_node_t* node);
 static void show_case(builtin_text_case_t c);
 static void tts_timer_cb(lv_timer_t* t);
 static void schedule_tts_after_delay(void);
 static void ui_notify_tts_finished_async(void *arg);
 
-
-// ---- Картинки/память
 static void free_all_images_except(const lv_img_dsc_t* except_dsc)
 {
     for (int i = 0; i < CASE_TXT_COUNT; ++i) {
@@ -65,7 +62,6 @@ void apply_image_for_case(builtin_text_case_t c)
     }
 }
 
-// ---- Кнопки "служебные"
 void on_btn_change_pressed(lv_event_t * e)
 {
     (void)e;
@@ -82,16 +78,13 @@ void on_btn_say_pressed(lv_event_t * e)
     start_tts_playback_c(text);
 }
 
-// ---- Событие "TTS закончил"
 static void ui_notify_tts_finished_async(void *arg)
 {
     (void)arg;
     const story_node_t* node = story_get_node(s_current);
     if (node && node->is_final) {
-        // Открыть кнопку "конец" после завершения озвучки
         if (ui_end) lv_obj_clear_flag(ui_end, LV_OBJ_FLAG_HIDDEN);
     } else {
-        // Не финал — показать варианты
         update_question_and_choices(node);
     }
 }
@@ -102,35 +95,34 @@ void ui_notify_tts_finished(void)
     lv_async_call(ui_notify_tts_finished_async, NULL);
 }
 
-// --- Показ/скрытие элементов при финале истории (D1..D16)
 static void set_end_ui(bool on)
 {
     if (on) {
-        // Скрыть стрелки, варианты и панель с вопросом
+     
         if (ui_Image6)  lv_obj_add_flag(ui_Image6,  LV_OBJ_FLAG_HIDDEN);
         if (ui_Image7)  lv_obj_add_flag(ui_Image7,  LV_OBJ_FLAG_HIDDEN);
         if (ui_choice1) lv_obj_add_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
         if (ui_choice2) lv_obj_add_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
         if (ui_PanelQ)  lv_obj_add_flag(ui_PanelQ,  LV_OBJ_FLAG_HIDDEN);
 
-        // Кнопку "конец" пока держим скрытой — покажем после TTS
+        
         if (ui_end)     lv_obj_add_flag(ui_end,     LV_OBJ_FLAG_HIDDEN);
     } else {
-        // Вернуть обычный режим: показать стрелки, панель; варианты откроются после TTS
+       
         if (ui_Image6)  lv_obj_clear_flag(ui_Image6,  LV_OBJ_FLAG_HIDDEN);
         if (ui_Image7)  lv_obj_clear_flag(ui_Image7,  LV_OBJ_FLAG_HIDDEN);
         if (ui_PanelQ)  lv_obj_clear_flag(ui_PanelQ,  LV_OBJ_FLAG_HIDDEN);
 
-        // Варианты пока прячем — появятся после TTS в update_question_and_choices()
+     
         if (ui_choice1) lv_obj_add_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
         if (ui_choice2) lv_obj_add_flag(ui_choice2, LV_OBJ_FLAG_HIDDEN);
 
-        // Кнопка "конец" точно скрыта
+      
         if (ui_end)     lv_obj_add_flag(ui_end,     LV_OBJ_FLAG_HIDDEN);
     }
 }
 
-// ---- Обработчики выбора
+
 void button_choose_1(lv_event_t * e)
 {
     (void)e;
@@ -150,19 +142,19 @@ void button_choose_2(lv_event_t * e)
 void button_choose_end(lv_event_t * e)
 {
     (void)e;
-    // Вернуться к старту (уровень A) и восстановить обычный UI
+
     set_end_ui(false);
     show_case(STORY_START_CASE);
 }
 
 
-// ---- Тексты вопроса/вариантов (показываем ТОЛЬКО после TTS)
+
 static void update_question_and_choices(const story_node_t* node)
 {
     if (!ui_LabelCh1 || !ui_LabelCh2) return;
 
     if (!node || node->is_final) {
-        // вопрос уже показали в show_case; здесь только варианты
+  
         lv_label_set_text(ui_LabelCh1,"");
         lv_label_set_text(ui_LabelCh2,"");
         lv_obj_clear_flag(ui_choice1, LV_OBJ_FLAG_HIDDEN);
@@ -177,14 +169,14 @@ static void update_question_and_choices(const story_node_t* node)
 }
 
 
-// ---- Отложенный запуск TTS (1 сек после смены картинки)
+
 static void tts_timer_cb(lv_timer_t* t)
 {
     (void)t;
     const char* text = get_builtin_text();
     start_tts_playback_c(text);
 
-    // Удаляем ТОЛЬКО здесь, чтобы исключить двойное освобождение
+  
     if (s_tts_timer) {
         lv_timer_del(s_tts_timer);
         s_tts_timer = NULL;
@@ -195,17 +187,16 @@ static void schedule_tts_after_delay(void)
 {
     if (!s_tts_timer) {
         s_tts_timer = lv_timer_create(tts_timer_cb, 1000 /* ms */, NULL);
-        // не используем repeat_count=1, сами удалим таймер в callback
-        lv_timer_pause(s_tts_timer);      // на всякий случай — стартуем «на паузе»
+
+        lv_timer_pause(s_tts_timer);     
     }
 
     lv_timer_set_period(s_tts_timer, 1000);
-    lv_timer_reset(s_tts_timer);          // сбрасываем оставшееся время
-    lv_timer_resume(s_tts_timer);         // запускаем
+    lv_timer_reset(s_tts_timer);          
+    lv_timer_resume(s_tts_timer);      
 }
 
 
-// ---- Показ кейса: картинка → (1с) → TTS → (после) вопрос/выборы
 static void show_case(builtin_text_case_t c)
 {
     s_current = c;
@@ -217,13 +208,12 @@ static void show_case(builtin_text_case_t c)
     const bool is_final = (node && node->is_final);
 
     if (is_final) {
-        // Финал: прячем стрелки, варианты, панель; вопрос не показываем
         if (ui_LabelQ) { lv_label_set_text(ui_LabelQ, ""); }
         if (ui_LabelCh1) lv_label_set_text(ui_LabelCh1,"");
         if (ui_LabelCh2) lv_label_set_text(ui_LabelCh2,"");
         set_end_ui(true);
     } else {
-        // Обычный шаг: показать вопрос сразу, варианты появятся после TTS
+       
         if (ui_LabelQ)
             lv_label_set_text(ui_LabelQ, node && node->question ? node->question : "");
         if (ui_LabelCh1) lv_label_set_text(ui_LabelCh1,"");
@@ -234,7 +224,6 @@ static void show_case(builtin_text_case_t c)
     schedule_tts_after_delay();
 }
 
-// ---- Старт истории
 void ui_story_start(void)
 {
     show_case(STORY_START_CASE);

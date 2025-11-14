@@ -1,7 +1,6 @@
 #include "builtin_texts.h"
 #include <stdatomic.h>
 
-/* Scenario: THIRD — 3 sample texts (you can add more or less). */
 static const char* kThirdTexts[] = {
      // A (CASE_TXT_01)
     "Once upon a time, there lived a young princess named Snow White.\n"

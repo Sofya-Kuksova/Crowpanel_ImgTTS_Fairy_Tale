@@ -31,7 +31,6 @@ void ui_init(void)
 {
      lv_disp_t * dispp = lv_disp_get_default();
 
-    // Темы отключены в menuconfig → не инициализируем их, а явно сбрасываем
     lv_disp_set_theme(dispp, NULL);
 
     ui_img_arrow_png_load();
