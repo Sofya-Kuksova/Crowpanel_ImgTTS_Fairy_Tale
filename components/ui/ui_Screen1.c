@@ -208,10 +208,10 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_width(ui_LabelEnd, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelEnd, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(ui_LabelEnd, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_LabelEnd, "It was nice story! Try again.");
+    lv_label_set_text(ui_LabelEnd, "It was a wonderful story! Try Again.");
     lv_obj_set_style_text_color(ui_LabelEnd, lv_color_hex(0xF3F0A7), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelEnd, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_LabelEnd, &ui_font_Font1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelEnd, &ui_font_Font2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Image6 = lv_img_create(ui_Screen1);
     lv_img_set_src(ui_Image6, &ui_img_arrow_png);
