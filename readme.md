@@ -42,7 +42,7 @@ The current firmware build ships with a single **fairy_tale** card scenario (fai
 
 #### Build from sources
 1. Install ESP-IDF framework v5.4.  
-2. git lfs install
+2. ```git lfs install```
 3. Clone the repository.
 4. Dependencies are managed via the ESP-IDF component manager (`idf_component.yml`).  
 5. Build and flash:
