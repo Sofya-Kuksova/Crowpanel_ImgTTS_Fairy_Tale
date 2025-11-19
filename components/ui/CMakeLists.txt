@@ -18,6 +18,7 @@ set(UI_COMMON_SRCS
   ui_img_arrow_png.c
   tts_bridge_impl.c
   story_fairy_tale.c
+  ui_img_loading_gif.c
 )
 
 file(GLOB UI_THIRD_SRCS
@@ -40,6 +41,7 @@ idf_component_register(
   REQUIRES
     lvgl__lvgl
     espressif__esp32_display_panel
+    gifdec
 )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC

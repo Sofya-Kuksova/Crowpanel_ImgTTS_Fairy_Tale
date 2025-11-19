@@ -30,6 +30,7 @@ extern lv_obj_t * ui_end;
 extern lv_obj_t * ui_LabelEnd;
 extern lv_obj_t * ui_Image6;
 extern lv_obj_t * ui_Image7;
+extern lv_obj_t * ui_GifLoading;
 
 // CUSTOM VARIABLES
 

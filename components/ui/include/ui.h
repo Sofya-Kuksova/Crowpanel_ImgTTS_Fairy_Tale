@@ -37,7 +37,11 @@ extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES 
 extern lv_img_dsc_t ui_img_arrow_png;   // assets/arrow.png
+
 void ui_img_arrow_png_load();
+
+extern lv_img_dsc_t ui_img_loading_gif;
+void ui_img_loading_gif_load();
 
 // FONTS
 LV_FONT_DECLARE(ui_font_Font1);
