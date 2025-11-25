@@ -42,6 +42,7 @@ idf_component_register(
     lvgl__lvgl
     espressif__esp32_display_panel
     gifdec
+    zlib  
 )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
