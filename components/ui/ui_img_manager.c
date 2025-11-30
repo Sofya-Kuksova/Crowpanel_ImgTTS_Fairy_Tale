@@ -3,50 +3,39 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "zlib.h"          // <-- NEW: zlib for decompression
+#include "esp_timer.h"
 
 #include "ui_img_manager.h"
 
 static const char *TAG = "UIIMG";
 
-#ifndef ASSETS_SUBDIR
-#define ASSETS_SUBDIR "assets_fairy_tale"
-#endif
-
-/**
- * Map logical path "S:..." to real SPIFFS path.
- *
- * Examples:
- *   "S:assets/ui_img_a_png.bin"
- *       -> "/spiffs/assets_fairy_tale/ui_img_a_png.bin"
- *
- *   "S:assets/ui_img_arrow_png.bin"
- *       -> "/spiffs/assets/ui_img_arrow_png.bin"  (special case)
- */
 static void map_path(char *dst, size_t dst_sz, const char *src)
 {
     if (src && src[0] == 'S' && src[1] == ':') {
-        const char *p = src + 2;      // skip "S:"
-        if (*p == '/') p++;           // S:/assets/... -> assets/...
+        const char *p = src + 2;   // skip "S:"
+        if (*p == '/') p++;        // S:/assets/... -> assets/...
 
-        const char *assets = "assets/";
-        const size_t assets_len = 7;
-
-        // Special case: arrow icon lives in /spiffs/assets/ directly
-        if (strstr(p, "ui_img_arrow_png.bin")) {
+        /* S:assets/... -> /spiffs/assets/...  (элементы интерфейса) */
+        if (strncmp(p, "assets/", 7) == 0) {
             snprintf(dst, dst_sz, "/spiffs/%s", p);
             return;
         }
 
-        // For "assets/xxx" put files into /spiffs/ASSETS_SUBDIR/xxx
-        if (strncmp(p, assets, assets_len) == 0) {
-            const char *rest = p + assets_len;  // after "assets/"
-            snprintf(dst, dst_sz, "/spiffs/%s/%s", ASSETS_SUBDIR, rest);
-        } else {
-            // All other "S:xxx" paths go under /spiffs/
+        /* S:assets_s/... -> /spiffs/assets_s/...  (маленькие картинки сказки) */
+        if (strncmp(p, "assets_s/", 9) == 0) {
             snprintf(dst, dst_sz, "/spiffs/%s", p);
+            return;
         }
+
+        /* S:assets_l/... -> /spiffs/assets_l/...  (большие картинки сказки) */
+        if (strncmp(p, "assets_l/", 9) == 0) {
+            snprintf(dst, dst_sz, "/spiffs/%s", p);
+            return;
+        }
+
+        /* всё остальное — просто под /spiffs */
+        snprintf(dst, dst_sz, "/spiffs/%s", p);
     } else {
-        // Non-prefixed paths are used as-is
         snprintf(dst, dst_sz, "%s", src ? src : "");
     }
 }
@@ -71,6 +60,8 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
                  (void*)fname_S, (unsigned)size);
         return NULL;
     }
+
+    uint64_t t_start_us = esp_timer_get_time();  // <-- старт замера
 
     char real[256];
     map_path(real, sizeof(real), fname_S);
@@ -101,7 +92,7 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
     size_t file_size = (size_t)file_size_long;
     rewind(fp);
 
-    // Case 1: RAW image (file size matches expected uncompressed size)
+    /* ----- Case 1: RAW image (file size matches expected uncompressed size) ----- */
     if (file_size == size) {
         ESP_LOGD(TAG, "image is RAW (%u bytes), reading directly", (unsigned)file_size);
 
@@ -122,10 +113,18 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
             return NULL;
         }
 
+        uint64_t t_end_us = esp_timer_get_time();
+        ESP_LOGI(TAG,
+                 "load RAW image done: %s (flash=%u, out=%u) in %llu ms",
+                 real,
+                 (unsigned)file_size,
+                 (unsigned)size,
+                 (unsigned long long)((t_end_us - t_start_us) / 1000ULL));
+
         return buf;
     }
 
-    // Case 2: COMPRESSED image (zlib)
+    /* ----- Case 2: COMPRESSED image (zlib) ----- */
     ESP_LOGD(TAG,
              "image assumed COMPRESSED (file=%u bytes, uncompressed=%u)",
              (unsigned)file_size, (unsigned)size);
@@ -175,6 +174,15 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
         return NULL;
     }
 
+    uint64_t t_end_us = esp_timer_get_time();
+    ESP_LOGI(TAG,
+             "load COMPRESSED image done: %s (flash=%u, out=%u) in %llu ms",
+             real,
+             (unsigned)file_size,
+             (unsigned)size,
+             (unsigned long long)((t_end_us - t_start_us) / 1000ULL));
+
     ESP_LOGD(TAG, "image decompressed OK: %s", real);
     return out_buf;
 }
+

@@ -5,18 +5,19 @@
 #include "gifdec.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 
 static const char *TAG = "GIF_LOADING";
 
 // путь к GIF в SPIFFS
-#define UI_LOADING_GIF_PATH  "/spiffs/assets/bird_wh.gif"
+#define UI_LOADING_GIF_PATH  "/spiffs/assets/bird_norm_110.gif"
 
-// LVGL-дескриптор изображения для ui_GifLoading
+// общий LVGL-дескриптор изображения для всех птиц
 lv_img_dsc_t ui_img_loading_gif = {
     .header.always_zero = 0,
     .header.w = 0,
     .header.h = 0,
-    .header.cf = LV_IMG_CF_TRUE_COLOR,   // буфер будет в формате lv_color_t
+    .header.cf = LV_IMG_CF_TRUE_COLOR,   // буфер в формате lv_color_t
     .data = NULL,
     .data_size = 0
 };
@@ -48,9 +49,10 @@ static void gif_convert_to_lv_color(void)
     }
 }
 
-// таймер обновления кадра GIF
 static void gif_update_timer(lv_timer_t *timer)
 {
+    uint64_t t_start_us = esp_timer_get_time();   // <-- старт замера
+
     if (!gd) {
         return;
     }
@@ -73,15 +75,22 @@ static void gif_update_timer(lv_timer_t *timer)
     // сконвертировать текущий кадр в lv_color_t
     gif_convert_to_lv_color();
 
-    lv_obj_t *img = (lv_obj_t *)timer->user_data;
-    if (img) {
-        lv_obj_invalidate(img); // перерисовать объект
-    }
+    // перерисовать все объекты-птицы, если они существуют
+    if (ui_bird1) lv_obj_invalidate(ui_bird1);
+    if (ui_bird2) lv_obj_invalidate(ui_bird2);
+    if (ui_bird3) lv_obj_invalidate(ui_bird3);
 
     // задержка в 1/100 секунды
     uint16_t delay_cs  = gd->gce.delay;
     uint32_t period_ms = delay_cs ? (uint32_t)delay_cs * 10U : 100U;
-    lv_timer_set_period(timer, period_ms);
+    lv_timer_set_period(gif_timer, period_ms);
+
+    uint64_t t_end_us = esp_timer_get_time();    // <-- конец замера
+
+    ESP_LOGD(TAG,
+             "GIF frame updated in %llu ms (period=%u ms)",
+             (unsigned long long)((t_end_us - t_start_us) / 1000ULL),
+             (unsigned)period_ms);
 }
 
 void ui_img_loading_gif_load(void)
@@ -107,14 +116,14 @@ void ui_img_loading_gif_load(void)
 
     gif_px_cnt = (uint32_t)gd->width * (uint32_t)gd->height;
 
-    // выделяем буферы (маленький GIF — это дешево)
+    // выделяем буферы в PSRAM
     gif_rgb_buf = heap_caps_malloc(gif_px_cnt * 3U, MALLOC_CAP_SPIRAM);
     gif_lv_buf  = heap_caps_malloc(gif_px_cnt * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
 
     if (!gif_rgb_buf || !gif_lv_buf) {
         ESP_LOGE(TAG, "malloc for GIF buffers failed");
-        if (gif_rgb_buf) free(gif_rgb_buf);
-        if (gif_lv_buf)  free(gif_lv_buf);
+        if (gif_rgb_buf) heap_caps_free(gif_rgb_buf);
+        if (gif_lv_buf)  heap_caps_free(gif_lv_buf);
         gif_rgb_buf = NULL;
         gif_lv_buf  = NULL;
         gd_close_gif(gd);
@@ -126,23 +135,21 @@ void ui_img_loading_gif_load(void)
     gif_convert_to_lv_color();
 
     // Настраиваем LVGL-дескриптор
-    ui_img_loading_gif.header.w = gd->width;
-    ui_img_loading_gif.header.h = gd->height;
-    ui_img_loading_gif.header.cf = LV_IMG_CF_TRUE_COLOR;
-    ui_img_loading_gif.data     = (const uint8_t *)gif_lv_buf;
-    ui_img_loading_gif.data_size = gif_px_cnt * sizeof(lv_color_t);
+    ui_img_loading_gif.header.w   = gd->width;
+    ui_img_loading_gif.header.h   = gd->height;
+    ui_img_loading_gif.header.cf  = LV_IMG_CF_TRUE_COLOR;
+    ui_img_loading_gif.data       = (const uint8_t *)gif_lv_buf;
+    ui_img_loading_gif.data_size  = gif_px_cnt * sizeof(lv_color_t);
 
-    if (!ui_GifLoading) {
-        ESP_LOGW(TAG, "ui_GifLoading is NULL (screen not created yet?)");
-    } else {
-        // Назначаем источник картинки
-        lv_img_set_src(ui_GifLoading, &ui_img_loading_gif);
+    // Подвешиваем один и тот же дескриптор к трём птицам (если уже созданы)
+    if (ui_bird1) lv_img_set_src(ui_bird1, &ui_img_loading_gif);
+    if (ui_bird2) lv_img_set_src(ui_bird2, &ui_img_loading_gif);
+    if (ui_bird3) lv_img_set_src(ui_bird3, &ui_img_loading_gif);
 
-        // запускаем таймер анимации
-        uint16_t delay_cs  = gd->gce.delay;
-        uint32_t period_ms = delay_cs ? (uint32_t)delay_cs * 10U : 100U;
-        gif_timer = lv_timer_create(gif_update_timer, period_ms, ui_GifLoading);
-    }
+    // запускаем таймер анимации
+    uint16_t delay_cs  = gd->gce.delay;
+    uint32_t period_ms = delay_cs ? (uint32_t)delay_cs * 10U : 100U;
+    gif_timer = lv_timer_create(gif_update_timer, period_ms, NULL);
 
     ESP_LOGI(TAG, "GIF %dx%d loaded and playing", gd->width, gd->height);
 }
@@ -158,11 +165,11 @@ void ui_img_loading_gif_stop(void)
         gd = NULL;
     }
     if (gif_rgb_buf) {
-        free(gif_rgb_buf);
+        heap_caps_free(gif_rgb_buf);
         gif_rgb_buf = NULL;
     }
     if (gif_lv_buf) {
-        free(gif_lv_buf);
+        heap_caps_free(gif_lv_buf);
         gif_lv_buf = NULL;
     }
     gif_px_cnt = 0;

@@ -1,13 +1,25 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(UI_SCENARIO_NAME          "fairy_tale")
-set(UI_SCENARIO_NAME_LOWER    "fairy_tale")
-set(ASSETS_SUBDIR             "assets_fairy_tale")
+# --- Имя сценария UI ---
 
-message(STATUS "UI scenario fixed to: ${UI_SCENARIO_NAME} (assets: ${ASSETS_SUBDIR})")
+set(UI_SCENARIO_NAME       "fairy_tale")
+set(UI_SCENARIO_NAME_LOWER "fairy_tale")
+
+# Новая схема: две папки с картинками сказки
+set(ASSETS_S_SUBDIR "assets_s")   # small images (Screen1)
+set(ASSETS_L_SUBDIR "assets_l")   # large images (Screen2)
+
+message(STATUS
+  "UI scenario fixed to: ${UI_SCENARIO_NAME} "
+  "(assets_s: ${ASSETS_S_SUBDIR}, assets_l: ${ASSETS_L_SUBDIR})"
+)
+
+# --- Базовые файлы UI (корень components/ui) ---
 
 set(UI_COMMON_SRCS
   ui_Screen1.c
+  ui_Screen2.c
+  ui_Screen3.c
   ui.c
   ui_comp_hook.c
   ui_helpers.c
@@ -15,26 +27,36 @@ set(UI_COMMON_SRCS
   ui_font_Font1.c
   ui_font_Font2.c
   ui_img_manager.c
-  ui_img_arrow_png.c
+  ui_img_loading_gif.c
   tts_bridge_impl.c
   story_fairy_tale.c
-  ui_img_loading_gif.c
+  builtin_texts_fairy_tale.c
 )
 
-file(GLOB UI_THIRD_SRCS
+# --- Картинки экранов (иконки, рамки, стрелки и т.п.) ---
+
+file(GLOB UI_SCREEN_SRCS
+  "${CMAKE_CURRENT_LIST_DIR}/screens/*.c"
+)
+
+# --- Все файлы сценария fairy_tale (visuals_fairy_tale + ui_l/ui_s и т.д.) ---
+
+file(GLOB_RECURSE UI_FAIRY_SRCS
   "${CMAKE_CURRENT_LIST_DIR}/fairy_tale/*.c"
 )
 
-list(APPEND UI_THIRD_SRCS
-  "${CMAKE_CURRENT_LIST_DIR}/builtin_texts_fairy_tale.c"
+# Собираем общий список исходников компонента UI
+
+list(APPEND UI_COMMON_SRCS
+  ${UI_SCREEN_SRCS}
+  ${UI_FAIRY_SRCS}
 )
 
-list(REMOVE_DUPLICATES UI_THIRD_SRCS)
+list(REMOVE_DUPLICATES UI_COMMON_SRCS)
 
 idf_component_register(
   SRCS
     ${UI_COMMON_SRCS}
-    ${UI_THIRD_SRCS}
   INCLUDE_DIRS
     "include"
     "fairy_tale"
@@ -42,11 +64,16 @@ idf_component_register(
     lvgl__lvgl
     espressif__esp32_display_panel
     gifdec
-    zlib  
+    zlib
+  PRIV_REQUIRES
+    esp_timer
 )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
   UI_SCENARIO_NAME=${UI_SCENARIO_NAME}
   UI_SCENARIO_NAME_LOWER=\"${UI_SCENARIO_NAME_LOWER}\"
-  ASSETS_SUBDIR=\"${ASSETS_SUBDIR}\"
+  ASSETS_S_SUBDIR=\"${ASSETS_S_SUBDIR}\"
+  ASSETS_L_SUBDIR=\"${ASSETS_L_SUBDIR}\"
+  # старый макрос оставляем как алиас, если где-то ещё используется
+  ASSETS_SUBDIR=\"${ASSETS_S_SUBDIR}\"
 )

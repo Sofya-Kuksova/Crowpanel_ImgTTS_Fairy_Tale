@@ -14,24 +14,25 @@ extern "C" {
 extern void ui_Screen1_screen_init(void);
 extern void ui_Screen1_screen_destroy(void);
 extern lv_obj_t * ui_Screen1;
-extern lv_obj_t * ui_Img;
-extern lv_obj_t * ui_ContainerQ;
-extern lv_obj_t * ui_PanelQ;
-extern lv_obj_t * ui_LabelQ;
-extern lv_obj_t * ui_ContainerB;
-extern void ui_event_choice1(lv_event_t * e);
-extern lv_obj_t * ui_choice1;
-extern lv_obj_t * ui_LabelCh1;
-extern void ui_event_choice2(lv_event_t * e);
-extern lv_obj_t * ui_choice2;
-extern lv_obj_t * ui_LabelCh2;
-extern void ui_event_end(lv_event_t * e);
-extern lv_obj_t * ui_end;
-extern lv_obj_t * ui_LabelEnd;
-extern lv_obj_t * ui_Image6;
-extern lv_obj_t * ui_Image7;
-extern lv_obj_t * ui_GifLoading;
-
+extern lv_obj_t * ui_Img1;
+extern lv_obj_t * ui_ContainerCh;
+extern void ui_event_ch1(lv_event_t * e);
+extern lv_obj_t * ui_ch1;
+extern lv_obj_t * ui_Labelch1;
+extern void ui_event_ch2(lv_event_t * e);
+extern lv_obj_t * ui_ch2;
+extern lv_obj_t * ui_Labelch2;
+extern lv_obj_t * ui_arr1;
+extern lv_obj_t * ui_arr2;
+extern lv_obj_t * ui_bird1;
+extern lv_obj_t * ui_frame1;
+extern lv_obj_t * ui_que2;
+extern lv_obj_t * ui_Labelq2;
+extern void ui_event_sett1(lv_event_t * e);
+extern lv_obj_t * ui_sett1;
+extern void ui_event_end2(lv_event_t * e);
+extern lv_obj_t * ui_end2;
+extern lv_obj_t * ui_Labelend2;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus
@@ -39,3 +40,4 @@ extern lv_obj_t * ui_GifLoading;
 #endif
 
 #endif
+
