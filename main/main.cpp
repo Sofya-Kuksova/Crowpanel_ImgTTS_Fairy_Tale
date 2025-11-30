@@ -1,37 +1,61 @@
+#include <stdio.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"      // очередь для TTS worker
 
 #include "esp_log.h"
+#include "esp_err.h"
+#include "esp_spiffs.h"          // esp_vfs_spiffs_conf_t, esp_vfs_spiffs_register
 
 #include "esp_display_panel.hpp"
 #include "lvgl_v8_port.h"
 
+#include "ui.h"                  // ui_init
+#include "tts_bridge.h"     // register_start_tts_cb
+
 #include "HxTTS.h"
-
 #include "uart_manager.h"
-
-#include "ui.h"
-#include "ui_events.h"   
-#include "tts_bridge.h"  
-
-#include "esp_spiffs.h"
-
-#include "lvgl.h"
-#include <stdio.h>
-#include <string.h>
-
-#include <errno.h>
-
-#include <dirent.h>
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
 
 static const char* TAG = "main";
 
-
 HxTTS *g_hx_tts = nullptr;
+
+// --- Новый код: очередь и таск для TTS ---
+
+static QueueHandle_t s_tts_queue   = nullptr;
+static TaskHandle_t  s_tts_task    = nullptr;
+
+static void tts_worker_task(void *arg)
+{
+    (void)arg;
+    const char *text = nullptr;
+
+    ESP_LOGI(TAG, "TTS worker task started");
+
+    for (;;) {
+        // Ждём новый текст для озвучки
+        if (xQueueReceive(s_tts_queue, &text, portMAX_DELAY) == pdTRUE) {
+            if (!text) {
+                continue;
+            }
+
+            if (!g_hx_tts) {
+                ESP_LOGE(TAG, "TTS worker: g_hx_tts == nullptr");
+                continue;
+            }
+
+            ESP_LOGI(TAG, "TTS worker: speak text @%p", text);
+            // ВАЖНО: TTS идёт не в LVGL-таске
+            g_hx_tts->sendString(text);
+            g_hx_tts->startPlayback();
+        }
+    }
+}
 
 
 static bool fs_ready_cb(lv_fs_drv_t*) { return true; }
@@ -110,16 +134,28 @@ static void checkError(HxTTS& tts)
 
 extern "C" void start_tts_playback_impl(const char *text)
 {
-    if (!text) return;
+    if (!text) {
+        return;
+    }
     if (!g_hx_tts) {
         ESP_LOGE(TAG, "start_tts_playback_impl: g_hx_tts == nullptr");
         return;
     }
+    if (!s_tts_queue) {
+        ESP_LOGE(TAG, "start_tts_playback_impl: TTS queue not initialized");
+        return;
+    }
 
-    
-    g_hx_tts->sendString(text);
-    g_hx_tts->startPlayback();
+    // Текст — это указатель на константную строку из builtin_texts,
+    // её можно безопасно передавать по указателю.
+    const char *msg = text;
+
+    // Не блокируем LVGL: либо кладём в очередь, либо логируем, что переполнена.
+    if (xQueueSend(s_tts_queue, &msg, 0) != pdPASS) {
+        ESP_LOGW(TAG, "start_tts_playback_impl: TTS queue full, drop request");
+    }
 }
+
 
 
 extern "C" void app_main()
@@ -145,7 +181,33 @@ extern "C" void app_main()
     ESP_UTILS_CHECK_FALSE_EXIT(lvgl_port_start(), "LVGL start failed");
 
     g_hx_tts = new HxTTS(HxTTS::BusType::UART);
-    if (!g_hx_tts) { ESP_LOGE("main","Failed to create HxTTS instance"); return; }
+    if (!g_hx_tts) {
+        ESP_LOGE(TAG, "Failed to create HxTTS instance");
+        return;
+    }
+
+    // --- Новый код: очередь и worker для TTS ---
+    s_tts_queue = xQueueCreate(4, sizeof(const char *));
+    if (!s_tts_queue) {
+        ESP_LOGE(TAG, "Failed to create TTS queue");
+        return;
+    }
+
+    BaseType_t r = xTaskCreatePinnedToCore(
+        tts_worker_task,
+        "tts_worker",
+        4096,
+        nullptr,
+        tskIDLE_PRIORITY,    // приоритет НИЖЕ, чем у LVGL (LVGL_PORT_TASK_PRIORITY=1)
+        &s_tts_task,
+        tskNO_AFFINITY
+    );
+    if (r != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create TTS worker task");
+        return;
+    }
+    // --- конец нового кода ---
+
     register_start_tts_cb(start_tts_playback_impl);
     checkStatus(*g_hx_tts);
     checkError(*g_hx_tts);

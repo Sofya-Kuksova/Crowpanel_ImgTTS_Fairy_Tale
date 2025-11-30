@@ -112,7 +112,7 @@ HxTTS::Error HxTTS::startPlayback()
         "tts_mon",           
         4096,                
         this,                
-        tskIDLE_PRIORITY + 3,
+        tskIDLE_PRIORITY,
         NULL                 
     );
     if (r != pdPASS) {
@@ -146,20 +146,28 @@ HxTTS::Error HxTTS::waitReady(uint32_t timeout)
 {
     
     hm_status_t status;
-    uint32_t elapsed                         = 0;
-    static constexpr uint32_t polling_period = pdMS_TO_TICKS(100);
+    uint32_t elapsed_ms                  = 0;
+    static constexpr uint32_t poll_ms    = 200; // опрашиваем раз в 200 мс
+    const TickType_t poll_ticks          = pdMS_TO_TICKS(poll_ms);
+
     do {
         Error ret = getStatus(status);
         if (ret != Error::OK) {
             return ret;
         }
         ESP_LOGI(TAG, "status=%s", hm_status_to_str(status));
-        vTaskDelay(polling_period);
-        elapsed += polling_period;
-        if (elapsed > timeout) {
+
+        if (status != HM_STATUS_BUSY) {
+            break;
+        }
+
+        vTaskDelay(poll_ticks);
+        elapsed_ms += poll_ms;
+        if (elapsed_ms > timeout) {
             return Error::TIMEOUT;
         }
     } while (status == HM_STATUS_BUSY);
+
     return Error::OK;
 }
 

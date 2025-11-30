@@ -1,4 +1,5 @@
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -80,21 +81,30 @@ int hm_comm_reg_read(hm_comm_transport_t* transport, uint8_t reg, void* data, ui
 
     // find SOF
     while (1) {
-        // Check for timeout
         int64_t elapsed_time = esp_timer_get_time() - start_time;
         if (elapsed_time > timeout_us) {
             return HM_COMM_E_TIMEOUT;
         }
-        int r = transport->read(&byte, 1, 0);
-        if (r < 0)
+
+        // Немного подождать данных от UART (1 тик) вместо нулевого таймаута
+        int r = transport->read(&byte, 1, 1 /* ticks */);
+        if (r < 0) {
             return HM_COMM_E_FAIL;
-        if (r > 0) {
-            if (byte == (uint8_t)SOF_VALUE)
-                break;
-            else
-                ESP_LOGV(TAG, "sof read error: %d", r);
+        }
+        if (r == 0) {
+            // Ничего не пришло — уступаем CPU другим задачам
+            vTaskDelay(1);
+            continue;
+        }
+
+        // r > 0: пришёл байт
+        if (byte == (uint8_t)SOF_VALUE) {
+            break;
+        } else {
+            ESP_LOGV(TAG, "sof read error");
         }
     }
+
 
     uint8_t recv_buffer[HEADER_BYTES + MAX_PAYLOAD_LEN];
     int r = transport->read(recv_buffer, HEADER_BYTES, timeout);
