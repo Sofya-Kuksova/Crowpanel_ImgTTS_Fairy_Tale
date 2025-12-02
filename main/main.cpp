@@ -50,9 +50,14 @@ static void tts_worker_task(void *arg)
             }
 
             ESP_LOGI(TAG, "TTS worker: speak text @%p", text);
+
+            // Сообщаем UI, что ворона начала говорить → запустить GIF_TALK
+            ui_bird_talk_anim_start();
+
             // ВАЖНО: TTS идёт не в LVGL-таске
             g_hx_tts->sendString(text);
             g_hx_tts->startPlayback();
+
         }
     }
 }

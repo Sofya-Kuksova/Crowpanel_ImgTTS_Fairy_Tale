@@ -179,7 +179,7 @@ void ui_Screen1_screen_init(void)
     lv_img_set_src(ui_bird1, &ui_img_bird_png);
     lv_obj_set_width(ui_bird1, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_bird1, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_bird1, 349);
+    lv_obj_set_x(ui_bird1, 341);
     lv_obj_set_y(ui_bird1, -204);
     lv_obj_set_align(ui_bird1, LV_ALIGN_CENTER);
     lv_obj_add_flag(ui_bird1, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags

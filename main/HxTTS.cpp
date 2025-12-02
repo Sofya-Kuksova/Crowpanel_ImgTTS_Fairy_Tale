@@ -9,7 +9,8 @@
 #include "uart.h"
 
 extern "C" {
-#include "ui_events.h"   
+#include "ui_events.h"  
+#include "ui.h" 
 }
 
 #define HM_INT_GPIO_PIN GPIO_NUM_2
@@ -36,10 +37,13 @@ static void tts_monitor_task(void *arg)
         ESP_LOGW("HxTTS", "waitReady returned %d", static_cast<int>(err));
     }
 
+    // TTS закончил говорить → останавливаем GIF_TALK и возвращаем первый кадр
+    ui_bird_talk_anim_stop();
+
     ui_notify_tts_finished();
 
-   
     vTaskDelete(NULL);
+
 }
 
 

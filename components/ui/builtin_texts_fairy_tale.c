@@ -3,11 +3,11 @@
 
 static const char* kThirdTexts[] = {
      // A (CASE_TXT_01)
-    "Once upon a time, there lived a young princess named Snow White.\n"
+    "Once upon a time. There lived a young princess named Snow White.\n"
     "She lived with her stepmother, the evil Queen, who every day asked her mirror.\n"
     "Mirror, mirror on the wall, who is the fairest one of all?\n"
     "When the mirror replied that Snow White was the fairest, the Queen flew into a rage and order a servant to take the princess into the forest.\n"
-    "The servant took pity on her and said. Run, princess, hide where no one will find you!",
+    "The servant took pity on her and said. Run princess, hide where no one will find you.",
 
     // B1 (CASE_TXT_02)
     "Snow White walked along the soft path until she saw a little house among the flowers.\n"

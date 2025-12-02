@@ -64,6 +64,11 @@ void ui_img_speech_png_load();
 
 extern lv_img_dsc_t ui_img_loading_gif;
 void ui_img_loading_gif_load();
+void ui_img_loading_gif_stop();
+
+void ui_bird_talk_anim_start();
+void ui_bird_talk_anim_stop();
+
 
 
 // FONTS
