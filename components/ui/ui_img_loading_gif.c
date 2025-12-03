@@ -399,7 +399,31 @@ void ui_bird_talk_anim_stop(void)
     s_talk_need_rewind = true;
 }
 
+// --- Дополнительные хелперы для Screen1 ---
 
+// Переводим ворону на Screen1 в режим TALK (тот же GIF, что и для ui_bird2)
+void ui_bird1_use_talk_gif(void)
+{
+    if (!gif_talk_load_once()) {
+        return;
+    }
+    if (ui_bird1) {
+        lv_img_set_src(ui_bird1, &ui_img_talk_gif);
+        lv_obj_invalidate(ui_bird1);
+    }
+}
+
+// Возвращаем ворону на Screen1 в обычный idle GIF
+void ui_bird1_use_idle_gif(void)
+{
+    if (!gif_norm_load_once()) {
+        return;
+    }
+    if (ui_bird1) {
+        lv_img_set_src(ui_bird1, &ui_img_loading_gif);
+        lv_obj_invalidate(ui_bird1);
+    }
+}
 
 // ============================================================
 //  Публичный API (ui.h): load/stop

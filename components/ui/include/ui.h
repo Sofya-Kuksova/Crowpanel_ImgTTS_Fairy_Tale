@@ -66,6 +66,9 @@ extern lv_img_dsc_t ui_img_loading_gif;
 void ui_img_loading_gif_load();
 void ui_img_loading_gif_stop();
 
+void ui_bird1_use_talk_gif();
+void ui_bird1_use_idle_gif();
+
 void ui_bird_talk_anim_start();
 void ui_bird_talk_anim_stop();
 

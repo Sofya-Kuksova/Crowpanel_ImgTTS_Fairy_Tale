@@ -18,6 +18,11 @@ static lv_timer_t *s_tts_timer           = NULL; // старт TTS через 1s
 static lv_timer_t *s_after_tts_timer     = NULL; // через 1s после TTS → Screen1
 static lv_timer_t *s_question_hold_timer = NULL; // пауза с вопросом
 
+static lv_timer_t *s_outro_tts_timer     = NULL; // ПАУЗА перед финальной репликой (0.5s)
+
+static bool s_intro_mode       = true;  // до первого TTS прогоняем вступление
+static bool s_outro_mode       = false; // сейчас проигрываем финальную реплику
+
 static const char* TAG_UI = "ui_events";
 
 /* Вперёд объявления внутренних функций */
@@ -39,6 +44,9 @@ static void start_choices_fade_in(void);   // вперёд объявление
 static void question_hold_timer_cb(lv_timer_t *t);
 static void question_fade_out_ready_cb(lv_anim_t *a);
 static void question_fade_in_ready_cb(lv_anim_t *a);
+
+static void outro_tts_timer_cb(lv_timer_t *t);
+
 
 static void anim_set_opa_cb(void *var, int32_t v)
 {
@@ -173,11 +181,13 @@ static void start_final_end_sequence(void)
 {
     if (!ui_end2 || !ui_Labelend2) return;
 
+    // Прячем вопрос и выбор
     if (ui_que2)        lv_obj_add_flag(ui_que2, LV_OBJ_FLAG_HIDDEN);
     if (ui_ContainerCh) lv_obj_add_flag(ui_ContainerCh, LV_OBJ_FLAG_HIDDEN);
     if (ui_arr1)        lv_obj_add_flag(ui_arr1, LV_OBJ_FLAG_HIDDEN);
     if (ui_arr2)        lv_obj_add_flag(ui_arr2, LV_OBJ_FLAG_HIDDEN);
 
+    // Подготавливаем кнопку "Try again"
     lv_label_set_text(ui_Labelend2, "Try again");
 
     lv_obj_clear_flag(ui_end2, LV_OBJ_FLAG_HIDDEN);
@@ -195,7 +205,40 @@ static void start_final_end_sequence(void)
         lv_timer_del(s_question_hold_timer);
         s_question_hold_timer = NULL;
     }
+
+    // --- НОВОЕ: говорящая ворона + финальный текст ---
+
+    // Помечаем, что сейчас идёт именно финальная реплика (outro)
+    s_outro_mode = true;
+
+    // 1) На Screen1 у ui_bird1 включаем TALK-GIF (тот же, что у ui_bird2)
+    ui_bird1_use_talk_gif();
+
+    // 2) Делаем паузу 0.5 секунды перед финальной фразой
+    if (s_outro_tts_timer) {
+        lv_timer_del(s_outro_tts_timer);
+        s_outro_tts_timer = NULL;
+    }
+    s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, 500 /* ms */, NULL);
 }
+
+
+static void outro_tts_timer_cb(lv_timer_t *t)
+{
+    (void)t;
+
+    const char *outro = builtin_get_outro_text();
+    if (outro) {
+        start_tts_playback_c(outro);
+    }
+
+    if (s_outro_tts_timer) {
+        lv_timer_del(s_outro_tts_timer);
+        s_outro_tts_timer = NULL;
+    }
+}
+
+
 
 /* --- Управление изображениями сказки (small/large) --- */
 
@@ -400,13 +443,31 @@ static void after_tts_timer_cb(lv_timer_t *t)
 static void ui_notify_tts_finished_async(void *arg)
 {
     (void)arg;
-    /* Запускаем таймер, который через 1 сек. вызовет after_tts_timer_cb */
+
+    // 1) Вступление: после него сразу стартуем первый кейс истории
+    if (s_intro_mode) {
+        s_intro_mode = false;
+        schedule_tts_after_delay();   // через 1 секунду запустится TTS для STORY_START_CASE
+        return;
+    }
+
+    // 2) Финальная реплика (outro): произносится ОДИН раз и никуда не переводит.
+    //    Просто снимаем флаг и выходим, оставляя Screen1 ждать нажатия "Try again".
+    if (s_outro_mode) {
+        s_outro_mode = false;
+        return;
+    }
+
+    // 3) Обычный случай: TTS для одного из кейсов сказки завершился.
     if (!s_after_tts_timer) {
         s_after_tts_timer = lv_timer_create(after_tts_timer_cb, 1000, NULL);
     } else {
         lv_timer_reset(s_after_tts_timer);
     }
 }
+
+
+
 
 void ui_notify_tts_finished(void)
 {
@@ -436,14 +497,26 @@ void button_choose_2(lv_event_t * e)
 static void tts_timer_cb(lv_timer_t* t)
 {
     (void)t;
-    const char* text = get_builtin_text();
-    start_tts_playback_c(text);
+
+    const char *text = NULL;
+    if (s_intro_mode) {
+        // Первый запуск: читаем вступление перед началом сказки
+        text = builtin_get_intro_text();
+    } else {
+        // Все последующие запуски: основной текст текущего кейса
+        text = get_builtin_text();
+    }
+
+    if (text) {
+        start_tts_playback_c(text);
+    }
 
     if (s_tts_timer) {
         lv_timer_del(s_tts_timer);
         s_tts_timer = NULL;
     }
 }
+
 
 static void schedule_tts_after_delay(void)
 {
@@ -497,7 +570,39 @@ void ui_story_start(void)
 void end_event(lv_event_t * e)
 {
     (void)e;
-    /* Запускаем сказку сначала и переходим на экран воспроизведения (Screen2) */
+
+    // Сбрасываем любые "режимы концовки"
+    s_outro_mode = false;
+    if (s_outro_tts_timer) {
+        lv_timer_del(s_outro_tts_timer);
+        s_outro_tts_timer = NULL;
+    }
+
+    // 1) Принудительно оборвать текущий TTS (если ещё идёт)
+    tts_stop_playback();      // stop_tts_playback_impl() + ui_bird_talk_anim_stop()
+
+    // 2) На Screen1 вернуть idle-анимацию вместо TALK
+    ui_bird1_use_idle_gif();
+
+    // 3) Сбросить режим "вступление уже было", чтобы при новом запуске
+    //    снова прозвучала приветственная фраза.
+    s_intro_mode = true;
+
+    // 4) Чистим таймеры, чтобы не висели старые callbacks
+    if (s_tts_timer) {
+        lv_timer_del(s_tts_timer);
+        s_tts_timer = NULL;
+    }
+    if (s_after_tts_timer) {
+        lv_timer_del(s_after_tts_timer);
+        s_after_tts_timer = NULL;
+    }
+    if (s_question_hold_timer) {
+        lv_timer_del(s_question_hold_timer);
+        s_question_hold_timer = NULL;
+    }
+
+    // 5) Запускаем сказку сначала и переходим на экран воспроизведения (Screen2)
     show_case(STORY_START_CASE);
     _ui_screen_change(&ui_Screen2,
                       LV_SCR_LOAD_ANIM_FADE_ON,
@@ -505,6 +610,7 @@ void end_event(lv_event_t * e)
                       0,
                       &ui_Screen2_screen_init);
 }
+
 
 /* --- Заглушки под события, которые сгенерировал SquareLine --- */
 

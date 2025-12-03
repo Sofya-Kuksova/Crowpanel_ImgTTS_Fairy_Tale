@@ -43,6 +43,9 @@ typedef enum {
  */
 int builtin_text_count(void);
 
+const char* builtin_get_intro_text(void);
+const char *builtin_get_outro_text(void);
+
 const char* get_builtin_text(void);
 void builtin_text_next(void);
 void builtin_text_set(builtin_text_case_t c);

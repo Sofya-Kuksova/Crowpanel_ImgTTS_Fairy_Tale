@@ -210,3 +210,16 @@ void builtin_text_set(builtin_text_case_t c) {
 builtin_text_case_t builtin_text_get(void) {
     return s_current_case;
 }
+
+const char* builtin_get_intro_text(void)
+{
+    /* Нейтральное приветствие для маленького пользователя, полностью на английском */
+    return "Hello my little friend! Today I will tell you an exciting story.";
+}
+
+// Финальная реплика рассказчика (после конца истории)
+const char* builtin_get_outro_text(void)
+{
+    return "That was a wonderful story, my little friend. Would you like to hear another one?";
+}
+

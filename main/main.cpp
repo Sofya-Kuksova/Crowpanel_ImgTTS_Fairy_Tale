@@ -161,6 +161,16 @@ extern "C" void start_tts_playback_impl(const char *text)
     }
 }
 
+extern "C" void stop_tts_playback_impl(void)
+{
+    if (!g_hx_tts) {
+        ESP_LOGW(TAG, "stop_tts_playback_impl: g_hx_tts == nullptr");
+        return;
+    }
+
+    // Принудительно остановить воспроизведение на модуле HX6538
+    g_hx_tts->stopPlayback();
+}
 
 
 extern "C" void app_main()
