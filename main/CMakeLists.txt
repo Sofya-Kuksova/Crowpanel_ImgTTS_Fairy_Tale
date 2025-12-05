@@ -9,6 +9,7 @@ idf_component_register(
     "hm_ctrl/hm_comm_protocol.c"
     "hm_ctrl/hm_regs.c"
     "uart_manager.c"
+    "uart_json.c"
     "uart_rx_task.c"
     "tts_bridge.cpp"
 

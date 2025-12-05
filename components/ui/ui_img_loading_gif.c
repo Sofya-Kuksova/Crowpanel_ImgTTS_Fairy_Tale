@@ -16,8 +16,8 @@ extern void lvgl_port_unlock(void);
 static const char *TAG = "GIF_LOADING";
 
 // пути к GIF в SPIFFS
-#define UI_BIRD_NORM_GIF_PATH  "/spiffs/assets/bird_norm_110.gif"
-#define UI_BIRD_TALK_GIF_PATH  "/spiffs/assets/bird_talk_110.gif"
+#define UI_BIRD_NORM_GIF_PATH  "/spiffs/assets/crow_idle.gif"
+#define UI_BIRD_TALK_GIF_PATH  "/spiffs/assets/crow_talk.gif"
 
 #define GIF_IDLE_SPEED_PCT   120u   
 #define GIF_TALK_SPEED_PCT   300u  

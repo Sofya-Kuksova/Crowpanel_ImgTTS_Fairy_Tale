@@ -18,6 +18,9 @@
 #include "HxTTS.h"
 #include "uart_manager.h"
 
+#include "uart_json.h"
+#include "ui_events.h"
+
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
 
@@ -224,6 +227,9 @@ extern "C" void app_main()
     // --- конец нового кода ---
 
     register_start_tts_cb(start_tts_playback_impl);
+
+    uart_json_init(on_text_update_from_uart);
+    
     checkStatus(*g_hx_tts);
     checkError(*g_hx_tts);
 }

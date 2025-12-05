@@ -10,6 +10,8 @@
 #include "esp_heap_caps.h"
 #include "story_fairy_tale.h"
 #include <stdbool.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "ui_helpers.h"
 
@@ -400,12 +402,50 @@ void on_btn_say_pressed(lv_event_t * e)
     start_tts_playback_c(text);
 }
 
-/* Если где-то ещё используется (UART → текст) — пока заглушка */
+/* --- UART → UI bridge (text to ui_Name) --- */
+
+/* Функция, которая реально трогает LVGL (вызывается в контексте LVGL) */
+static void apply_name_async(void *arg)
+{
+    char *s = (char *)arg;
+    if (!s) return;
+
+    if (ui_Name) {
+        lv_label_set_text(ui_Name, s);
+    }
+
+    free(s);
+}
+
+/* Колбэк, который дергает uart_json.c, когда прилетел текст из JSON */
 void on_text_update_from_uart(const char *text)
 {
-    (void)text;
-    /* Здесь можно будет обновлять текст/историю по UART при необходимости */
+    if (!text) return;
+
+    size_t len = strlen(text);
+    if (len == 0) return;
+
+    /* Обрезаем хвостовые \r\n, если приходят вместе с текстом */
+    while (len > 0 && (text[len - 1] == '\r' || text[len - 1] == '\n')) {
+        len--;
+    }
+    if (len == 0) return;
+
+    /* При желании можно ограничить максимальную длину имени */
+    if (len > 63) {
+        len = 63;
+    }
+
+    char *copy = (char *)malloc(len + 1);
+    if (!copy) return;
+
+    memcpy(copy, text, len);
+    copy[len] = '\0';
+
+    /* Перепрыгиваем в LVGL-поток: там уже обновим ui_Name */
+    lv_async_call(apply_name_async, copy);
 }
+
 
 /* --- Завершение TTS → переход на Screen1 и запуск анимаций --- */
 
@@ -571,22 +611,31 @@ void end_event(lv_event_t * e)
 {
     (void)e;
 
-    // Сбрасываем любые "режимы концовки"
-    s_outro_mode = false;
+    // 0) Если ещё НЕ успели начать финальную фразу (только висит таймер 0.5 c),
+    //    значит никакого outro-TTS нет, можно безопасно сбросить флаг.
     if (s_outro_tts_timer) {
         lv_timer_del(s_outro_tts_timer);
         s_outro_tts_timer = NULL;
+        s_outro_mode = false;
     }
+    // Если s_outro_tts_timer == NULL и s_outro_mode == true,
+    // это означает: финальная реплика УЖЕ проигрывается.
+    // В этом случае флаг НЕ трогаем: когда придёт ui_notify_tts_finished()
+    // (из tts_stop_playback), ui_notify_tts_finished_async() зайдёт в ветку
+    // "if (s_outro_mode) { ... return; }" и тихо проигнорирует это завершение.
 
-    // 1) Принудительно оборвать текущий TTS (если ещё идёт)
+    // 1) Принудительно оборвать текущий TTS (если ещё идёт).
+    //    Для финальной реплики это приведёт к вызову ui_notify_tts_finished(),
+    //    но, как описано выше, он просто сбросит s_outro_mode и НИЧЕГО не сделает.
     tts_stop_playback();      // stop_tts_playback_impl() + ui_bird_talk_anim_stop()
 
     // 2) На Screen1 вернуть idle-анимацию вместо TALK
     ui_bird1_use_idle_gif();
 
-    // 3) Сбросить режим "вступление уже было", чтобы при новом запуске
-    //    снова прозвучала приветственная фраза.
-    s_intro_mode = true;
+    // 3) ВАЖНО: больше НЕ трогаем s_intro_mode.
+    //    Вступительная фраза звучит только один раз — при самом первом старте панели.
+    //    Любой Try again (в том числе во время заключительной фразы) сразу начнёт
+    //    историю с STORY_START_CASE без приветствия.
 
     // 4) Чистим таймеры, чтобы не висели старые callbacks
     if (s_tts_timer) {
@@ -610,6 +659,8 @@ void end_event(lv_event_t * e)
                       0,
                       &ui_Screen2_screen_init);
 }
+
+
 
 
 /* --- Заглушки под события, которые сгенерировал SquareLine --- */
