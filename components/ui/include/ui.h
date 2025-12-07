@@ -61,6 +61,10 @@ extern lv_img_dsc_t ui_img_sett_on_png;   // assets/sett_on.png
 void ui_img_sett_on_png_load();
 extern lv_img_dsc_t ui_img_speech_png;   // assets/speech.png
 void ui_img_speech_png_load();
+extern lv_img_dsc_t ui_img_save_png;   // assets/save.png
+void ui_img_save_png_load();
+extern lv_img_dsc_t ui_img_reload_png;   // assets/reload.png
+void ui_img_reload_png_load();
 
 extern lv_img_dsc_t ui_img_loading_gif;
 void ui_img_loading_gif_load();

@@ -37,8 +37,9 @@ ser = None
 ser_lock = threading.Lock() 
 last_rx_time = None
 
-BG = "#646464"
-DEFAULT_FONT = ("Arial", 13)
+BG = "#E1DF90"
+DEFAULT_FONT = ("Times New Roman", 14)
+SMALL_FONT = ("Times New Roman", 12)
 
 COMBO_BG = "#C0C0C0"
 
@@ -538,7 +539,7 @@ def refresh_ports():
 
 
 root = tk.Tk()
-root.title("TTS & Settings")
+root.title("Name & Settings")
 
 win_width = 550
 win_height = 260
@@ -561,10 +562,14 @@ style.theme_use('clam')
 SELECTED_TAB_BG = BG            
 UNSELECTED_TAB_BG = "#DCDCDC"   
 
-style.configure('TNotebook.Tab', padding=(8,4), background=UNSELECTED_TAB_BG, foreground='black')
+style.configure('TNotebook.Tab', 
+                padding=(8,4), 
+                background=UNSELECTED_TAB_BG, 
+                foreground='black',
+                font=SMALL_FONT)  # <-- Добавьте эту строку для шрифта вкладок
 style.map('TNotebook.Tab',
           background=[('selected', SELECTED_TAB_BG), ('!selected', UNSELECTED_TAB_BG)],
-          foreground=[('selected', 'white'), ('!selected', 'black')])
+          foreground=[('selected', 'black'), ('!selected', 'black')])
 
 
 style.configure('LightGray.TCombobox',
@@ -581,10 +586,10 @@ notebook.pack(fill="both", expand=True, padx=8, pady=8)
 
 
 frame_tts = tk.Frame(notebook, bg=BG)
-notebook.add(frame_tts, text="Text to Speech")
+notebook.add(frame_tts, text="Name entry")
 
 
-tk.Label(frame_tts, text="Text:", font=DEFAULT_FONT, fg="white", bg=BG).grid(row=0, column=0, sticky="ne", padx=8, pady=8)
+tk.Label(frame_tts, text="Name:", font=DEFAULT_FONT, fg="black", bg=BG).grid(row=0, column=0, sticky="ne", padx=8, pady=8)
 
 text_entry = scrolledtext.ScrolledText(frame_tts, width=45, height=7, font=DEFAULT_FONT, wrap='word')
 text_entry.grid(row=0, column=1, sticky="ew", padx=8, pady=8)
@@ -605,7 +610,7 @@ settings_center = tk.Frame(frame_settings, bg=BG)
 
 settings_center.place(relx=0.5, rely=0.45, anchor='center')
 
-lbl_com = tk.Label(settings_center, text="COM-port:", font=DEFAULT_FONT, fg="white", bg=BG)
+lbl_com = tk.Label(settings_center, text="COM-port:", font=DEFAULT_FONT, fg="black", bg=BG)
 lbl_com.grid(row=0, column=0, sticky="e", padx=8, pady=8)
 
 ports_list = get_com_ports()

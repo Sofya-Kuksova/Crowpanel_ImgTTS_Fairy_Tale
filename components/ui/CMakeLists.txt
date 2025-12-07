@@ -31,6 +31,7 @@ set(UI_COMMON_SRCS
   tts_bridge_impl.c
   story_fairy_tale.c
   builtin_texts_fairy_tale.c
+  user_name_store.c
 )
 
 # --- Картинки экранов (иконки, рамки, стрелки и т.п.) ---

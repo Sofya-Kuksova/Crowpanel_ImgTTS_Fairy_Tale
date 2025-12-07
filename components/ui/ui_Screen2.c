@@ -15,12 +15,9 @@ lv_obj_t * ui_sett2 = NULL;
 // event funtions
 void ui_event_sett2(lv_event_t * e)
 {
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_CLICKED) {
-        _ui_screen_change(&ui_Screen3, LV_SCR_LOAD_ANIM_FADE_ON, 300, 0, &ui_Screen3_screen_init);
-    }
+    ui_handle_settings_from_screen2(e);
 }
+
 
 // build funtions
 

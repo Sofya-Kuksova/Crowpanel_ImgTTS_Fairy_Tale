@@ -1,5 +1,7 @@
 #include "builtin_texts.h"
 #include <stdatomic.h>
+#include <stdio.h>
+#include "user_name_store.h"
 
 static const char* kThirdTexts[] = {
      // A (CASE_TXT_01)
@@ -213,13 +215,24 @@ builtin_text_case_t builtin_text_get(void) {
 
 const char* builtin_get_intro_text(void)
 {
-    /* Нейтральное приветствие для маленького пользователя, полностью на английском */
-    return "Hello my little friend! Today I will tell you an exciting story.";
+    /* Буфер под собранную фразу (один статический, переиспользуем) */
+    static char intro_buf[128];
+
+    const char *stored_name = user_name_get();
+    const char *who = (stored_name && stored_name[0] != '\0')
+                        ? stored_name
+                        : "my little friend";
+
+    /* Составляем строку целиком */
+    snprintf(intro_buf, sizeof(intro_buf),
+             "Hello, %s! Today I will tell you an exciting story.", who);
+
+    return intro_buf;
 }
 
 // Финальная реплика рассказчика (после конца истории)
 const char* builtin_get_outro_text(void)
 {
-    return "That was a wonderful story, my little friend. Would you like to hear another one?";
+    return "That was a wonderful story. Would you like to hear another one?";
 }
 

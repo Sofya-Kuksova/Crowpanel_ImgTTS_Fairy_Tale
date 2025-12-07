@@ -43,6 +43,8 @@ void ui_init(void)
     ui_img_frame_lrg_png_load();
     ui_img_sett_on_png_load();
     ui_img_speech_png_load();
+    ui_img_save_png_load();
+    ui_img_reload_png_load();
 
     ui_Screen1_screen_init();
     ui_Screen2_screen_init();

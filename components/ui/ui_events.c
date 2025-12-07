@@ -5,6 +5,7 @@
 #include "tts_bridge.h"
 #include "builtin_texts.h"
 #include "esp_log.h"
+#include "esp_system.h" 
 #include "lvgl.h"
 #include "visuals.h"
 #include "esp_heap_caps.h"
@@ -14,6 +15,7 @@
 #include <stdlib.h>
 
 #include "ui_helpers.h"
+#include "user_name_store.h" 
 
 static builtin_text_case_t s_current = STORY_START_CASE;
 static lv_timer_t *s_tts_timer           = NULL; // старт TTS через 1s
@@ -24,6 +26,10 @@ static lv_timer_t *s_outro_tts_timer     = NULL; // ПАУЗА перед фин
 
 static bool s_intro_mode       = true;  // до первого TTS прогоняем вступление
 static bool s_outro_mode       = false; // сейчас проигрываем финальную реплику
+
+/* Новое: состояние экрана настроек */
+static int  s_last_active_screen = 0;   // 0 – неизвестно, 1 – Screen1, 2 – Screen2
+static bool s_settings_open      = false;
 
 static const char* TAG_UI = "ui_events";
 
@@ -40,12 +46,17 @@ static void apply_image_for_case_internal(builtin_text_case_t c,
                                           bool need_small,
                                           bool need_large);
 
+/* Новое: пауза/возобновление fade-анимаций вопроса/вариантов */
+static void pause_question_and_choice_animations(void);
+static void resume_question_and_choice_animations(void);
+
 /* --- АНИМАЦИИ ВОПРОСА И ВАРИАНТОВ (C-версия) --- */
 
 static void start_choices_fade_in(void);   // вперёд объявление
 static void question_hold_timer_cb(lv_timer_t *t);
 static void question_fade_out_ready_cb(lv_anim_t *a);
 static void question_fade_in_ready_cb(lv_anim_t *a);
+static void start_question_sequence(const story_node_t *node); 
 
 static void outro_tts_timer_cb(lv_timer_t *t);
 
@@ -56,6 +67,71 @@ static void anim_set_opa_cb(void *var, int32_t v)
     if (!obj) return;
     lv_obj_set_style_opa(obj, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
+
+
+/* "Пауза" вопроса и вариантов для Screen1.
+ * В LVGL 8 нет lv_anim_pause(), поэтому делаем так:
+ *  - останавливаем таймер удержания вопроса;
+ *  - просто удаляем текущие анимации opacity.
+ * Объекты остаются в том состоянии (opa), в котором были
+ * в момент ухода на экран настроек.
+ */
+static void pause_question_and_choice_animations(void)
+{
+    /* Пауза таймера удержания вопроса (если он есть) */
+    if (s_question_hold_timer) {
+        lv_timer_pause(s_question_hold_timer);
+    }
+
+    /* Удаляем анимации opacity для всех связанных объектов.
+     * Это оставит их "замороженными" в текущей прозрачности.
+     */
+    if (ui_que2) {
+        lv_anim_del(ui_que2, anim_set_opa_cb);
+    }
+    if (ui_ContainerCh) {
+        lv_anim_del(ui_ContainerCh, anim_set_opa_cb);
+    }
+    if (ui_arr1) {
+        lv_anim_del(ui_arr1, anim_set_opa_cb);
+    }
+    if (ui_arr2) {
+        lv_anim_del(ui_arr2, anim_set_opa_cb);
+    }
+}
+
+static void resume_question_and_choice_animations(void)
+{
+    /* Берём текущий узел истории по s_current */
+    const story_node_t *node = story_get_node(s_current);
+    if (!node) {
+        return;
+    }
+
+    /* На финальном экране у нас своя логика (кнопка end2),
+     * вопрос/варианты там не используются — ничего не перезапускаем.
+     */
+    if (node->is_final) {
+        return;
+    }
+
+    /* Старый таймер удержания вопроса больше не нужен: мы хотим
+     * переиграть последовательность с нуля. Удаляем и обнуляем.
+     */
+    if (s_question_hold_timer) {
+        lv_timer_del(s_question_hold_timer);
+        s_question_hold_timer = NULL;
+    }
+
+    /* Полностью перезапускаем последовательность вопрос/варианты
+     * для того же самого кейса s_current.
+     * Внутри start_question_sequence() заново выставятся opa,
+     * спрячутся/покажутся объекты и стартуют нужные анимации.
+     */
+    start_question_sequence(node);
+}
+
+
 
 static void start_choices_fade_in(void)
 {
@@ -405,17 +481,28 @@ void on_btn_say_pressed(lv_event_t * e)
 /* --- UART → UI bridge (text to ui_Name) --- */
 
 /* Функция, которая реально трогает LVGL (вызывается в контексте LVGL) */
-static void apply_name_async(void *arg)
+static void apply_name_async(void *param)
 {
-    char *s = (char *)arg;
-    if (!s) return;
-
-    if (ui_Name) {
-        lv_label_set_text(ui_Name, s);
+    char *name = (char *)param;
+    if (!name) {
+        return;
     }
 
-    free(s);
+    /* НИКАКИХ user_name_set здесь больше нет.
+     * Просто отображаем имя в ui_Name.
+     */
+    if (ui_Name) {
+        // если ui_Name — текстовое поле (textarea):
+        // lv_textarea_set_text(ui_Name, name);
+
+        // если ui_Name — label, оставь так:
+        lv_label_set_text(ui_Name, name);
+    }
+
+    free(name);
 }
+
+
 
 /* Колбэк, который дергает uart_json.c, когда прилетел текст из JSON */
 void on_text_update_from_uart(const char *text)
@@ -482,30 +569,33 @@ static void after_tts_timer_cb(lv_timer_t *t)
 
 static void ui_notify_tts_finished_async(void *arg)
 {
-    (void)arg;
+    LV_UNUSED(arg);
 
-    // 1) Вступление: после него сразу стартуем первый кейс истории
-    if (s_intro_mode) {
-        s_intro_mode = false;
-        schedule_tts_after_delay();   // через 1 секунду запустится TTS для STORY_START_CASE
+    /* NEW: пока мы на экране настроек (Screen3), ЛЮБОЕ завершение TTS
+     * игнорируем: не двигаем историю, не сбрасываем флаги, не создаём таймеры.
+     * Это касается и кейсов на Screen2, и финальной реплики на Screen1.
+     */
+    if (s_settings_open) {
         return;
     }
 
-    // 2) Финальная реплика (outro): произносится ОДИН раз и никуда не переводит.
-    //    Просто снимаем флаг и выходим, оставляя Screen1 ждать нажатия "Try again".
+    if (s_intro_mode) {
+        s_intro_mode = false;
+        show_case(STORY_START_CASE);
+        return;
+    }
+
     if (s_outro_mode) {
         s_outro_mode = false;
         return;
     }
 
-    // 3) Обычный случай: TTS для одного из кейсов сказки завершился.
-    if (!s_after_tts_timer) {
-        s_after_tts_timer = lv_timer_create(after_tts_timer_cb, 1000, NULL);
-    } else {
+    if (s_after_tts_timer) {
         lv_timer_reset(s_after_tts_timer);
+    } else {
+        s_after_tts_timer = lv_timer_create(after_tts_timer_cb, 1000, NULL);
     }
 }
-
 
 
 
@@ -660,19 +750,176 @@ void end_event(lv_event_t * e)
                       &ui_Screen2_screen_init);
 }
 
+// ui_events.c — СТАЛО (новые функции)
 
+void ui_handle_settings_from_screen1(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_CLICKED) {
+        return;
+    }
+
+    s_last_active_screen = 1;
+    s_settings_open      = true;
+
+    /* Screen1: паузим fade-анимации вопроса/вариантов */
+    pause_question_and_choice_animations();
+
+    /* NEW: если сейчас проигрывается финальная реплика (outro),
+     * останавливаем TTS и отменяем таймер, чтобы потом переиграть её с нуля.
+     */
+    if (s_outro_mode) {
+        /* Остановить TTS на модуле HX6538 */
+        tts_stop_playback();
+
+        /* Отключить отложенный старт outro, если он ещё не успел сработать */
+        if (s_outro_tts_timer) {
+            lv_timer_del(s_outro_tts_timer);
+            s_outro_tts_timer = NULL;
+        }
+    }
+
+    _ui_screen_change(&ui_Screen3,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      100,
+                      0,
+                      &ui_Screen3_screen_init);
+}
+
+
+void ui_handle_settings_from_screen2(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_CLICKED) {
+        return;
+    }
+
+    s_last_active_screen = 2;
+    s_settings_open      = true;
+
+    /* Screen2: ПОЛНОСТЬЮ останавливаем TTS и связанные таймеры,
+     * чтобы при возврате проиграть текущий кейс заново.
+     */
+    tts_stop_playback();   // вместо tts_pause_playback()
+
+    if (s_tts_timer) {
+        lv_timer_del(s_tts_timer);
+        s_tts_timer = NULL;
+    }
+    if (s_after_tts_timer) {
+        lv_timer_del(s_after_tts_timer);
+        s_after_tts_timer = NULL;
+    }
+
+    _ui_screen_change(&ui_Screen3,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      100,
+                      0,
+                      &ui_Screen3_screen_init);
+}
+
+
+void ui_handle_settings_back_from_screen3(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_CLICKED) {
+        return;
+    }
+
+    s_settings_open = false;
+
+    if (s_last_active_screen == 1) {
+    /* Возврат на Screen1 */
+    _ui_screen_change(&ui_Screen1,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      100,
+                      0,
+                      &ui_Screen1_screen_init);
+
+    /* Возобновляем fade-анимации вопроса и вариантов
+     * (для финального узла внутри resume_question_and_choice_animations()
+     * мы уже сделали ранний return через node->is_final, так что там ничего
+     * лишнего не произойдёт).
+     */
+    resume_question_and_choice_animations();
+
+    /* NEW: если мы на финальном экране (s_outro_mode == true),
+     * значит outro было прервано настройками.
+     * Переигрываем финальную реплику с нуля: создаём заново таймер,
+     * который через 0.5 s запустит builtin_get_outro_text().
+     */
+    if (s_outro_mode && s_outro_tts_timer == NULL) {
+        /* ПАУЗА перед финальной репликой (0.5s) — как в start_final_end_sequence() */
+        s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, 500, NULL);
+    }
+} else if (s_last_active_screen == 2) {
+    /* Возврат на Screen2.
+     * TTS и таймеры мы до этого полностью остановили/удалили,
+     * поэтому здесь просто заново запускаем воспроизведение
+     * для текущего контекста (intro или case s_current).
+     */
+    _ui_screen_change(&ui_Screen2,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      100,
+                      0,
+                      &ui_Screen2_screen_init);
+
+    /* schedule_tts_after_delay создаст новый s_tts_timer,
+     * а в tts_timer_cb текст выберется как:
+     *   - builtin_get_intro_text(), если s_intro_mode == true
+     *   - get_builtin_text() для текущего s_current, если нет.
+     */
+    schedule_tts_after_delay();
+    }
+    else {
+        /* fallback, если что-то пошло не так */
+        _ui_screen_change(&ui_Screen2,
+                          LV_SCR_LOAD_ANIM_FADE_ON,
+                          100,
+                          0,
+                          &ui_Screen2_screen_init);
+    }
+}
 
 
 /* --- Заглушки под события, которые сгенерировал SquareLine --- */
 
-void change_screen_to_current(lv_event_t * e)
+void reload_app(lv_event_t * e)
 {
     (void)e;
-    // пока не используется
+
+    /* Самый простой и надёжный способ "начать всё с начала" —
+     * перезагрузить микроконтроллер. При следующем старте:
+     *  - SPIFFS монтируется;
+     *  - user_name_get() прочитает имя из /spiffs/user_name.txt;
+     *  - builtin_get_intro_text() сразу начнёт использовать
+     *    персонализированную фразу.
+     */
+    esp_restart();
 }
+
 
 void save_name(lv_event_t * e)
 {
     (void)e;
-    // пока не используется
+
+    if (!ui_Name) {
+        return;
+    }
+
+    /* ui_Name у нас — lv_label, поэтому берём текст именно так */
+    const char *text = lv_label_get_text(ui_Name);
+    if (!text) {
+        return;
+    }
+
+    /* Обрезаем до USER_NAME_MAX_LEN и нормализуем */
+    char buf[USER_NAME_MAX_LEN + 1];
+    size_t len = strnlen(text, USER_NAME_MAX_LEN);
+    memcpy(buf, text, len);
+    buf[len] = '\0';
+
+    /* Сохраняем в RAM + /spiffs/user_name.txt */
+    user_name_set(buf);
 }
+

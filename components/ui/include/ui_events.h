@@ -28,10 +28,17 @@ void ui_story_start(void);
 
 /* Служебные обработчики, сгенерированные SquareLine */
 void change_screen_to_current(lv_event_t * e);
+void reload_app(lv_event_t * e);
 void save_name(lv_event_t * e);
 
 /* Финальная кнопка "Try again" (ui_end2) */
 void end_event(lv_event_t * e);
+
+void ui_handle_settings_from_screen1(lv_event_t * e);
+void ui_handle_settings_from_screen2(lv_event_t * e);
+void ui_handle_settings_back_from_screen3(lv_event_t * e);
+
+void reload_app(lv_event_t * e);
 
 #ifdef __cplusplus
 }

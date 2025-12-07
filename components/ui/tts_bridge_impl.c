@@ -4,8 +4,10 @@
 // Коллбек, который регистрируется из main.cpp
 static start_tts_cb_t g_cb = NULL;
 
-// Реальная "стоп"-функция из main.cpp (там ты сделаешь stop_tts_playback_impl)
+// Реальные реализации из main.cpp
 extern void stop_tts_playback_impl(void);
+extern void pause_tts_playback_impl(void);
+extern void resume_tts_playback_impl(void);
 
 void start_tts_playback_c(const char *text)
 {
@@ -25,7 +27,7 @@ void register_start_tts_cb(start_tts_cb_t cb)
     g_cb = cb;
 }
 
-// Новый API: принудительная остановка TTS из UI (кнопка "Try again")
+// Принудительная остановка TTS из UI (кнопка "Try again")
 void tts_stop_playback(void)
 {
     // Остановить звук на модуле HX6538
@@ -33,4 +35,24 @@ void tts_stop_playback(void)
 
     // И сразу же остановить TALK-анимацию (в т.ч. вернуть первый кадр)
     ui_bird_talk_anim_stop();
+}
+
+/* --- Новое: пауза/продолжение TTS для экрана настроек --- */
+
+void tts_pause_playback(void)
+{
+    // Пауза на модуле HX6538 (без завершения кейса)
+    pause_tts_playback_impl();
+
+    // Остановить TALK-GIF (можно просто вернуть птицу в idle-состояние)
+    ui_bird_talk_anim_stop();
+}
+
+void tts_resume_playback(void)
+{
+    // Возобновляем воспроизведение на модуле HX6538
+    resume_tts_playback_impl();
+
+    // И снова запускаем TALK-анимацию вороны
+    ui_bird_talk_anim_start();
 }

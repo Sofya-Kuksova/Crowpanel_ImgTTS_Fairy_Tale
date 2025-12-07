@@ -49,12 +49,10 @@ void ui_event_ch2(lv_event_t * e)
 
 void ui_event_sett1(lv_event_t * e)
 {
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_CLICKED) {
-        _ui_screen_change(&ui_Screen3, LV_SCR_LOAD_ANIM_FADE_ON, 100, 0, &ui_Screen3_screen_init);
-    }
+    /* Просто делегируем в "умный" обработчик из ui_events.c */
+    ui_handle_settings_from_screen1(e);
 }
+
 
 void ui_event_end2(lv_event_t * e)
 {

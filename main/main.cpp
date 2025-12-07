@@ -20,6 +20,7 @@
 
 #include "uart_json.h"
 #include "ui_events.h"
+#include "user_name_store.h"
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
@@ -174,6 +175,29 @@ extern "C" void stop_tts_playback_impl(void)
     // Принудительно остановить воспроизведение на модуле HX6538
     g_hx_tts->stopPlayback();
 }
+
+/* Новое: пауза/возобновление без сброса кейса */
+
+extern "C" void pause_tts_playback_impl(void)
+{
+    if (!g_hx_tts) {
+        ESP_LOGW(TAG, "pause_tts_playback_impl: g_hx_tts == nullptr");
+        return;
+    }
+
+    g_hx_tts->pausePlayback();
+}
+
+extern "C" void resume_tts_playback_impl(void)
+{
+    if (!g_hx_tts) {
+        ESP_LOGW(TAG, "resume_tts_playback_impl: g_hx_tts == nullptr");
+        return;
+    }
+
+    g_hx_tts->resumePlayback();
+}
+
 
 
 extern "C" void app_main()
