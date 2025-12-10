@@ -31,6 +31,9 @@ using namespace esp_panel::board;
 
 static const char* TAG = "main";
 
+#undef LOG_LOCAL_LEVEL
+#define LOG_LOCAL_LEVEL ESP_LOG_WARN
+
 // --- Новый стек TTS + аудио ---
 
 static AudioPlayer   s_audio_player;
@@ -58,7 +61,7 @@ static void tts_worker_task(void* arg)
             continue;
         }
 
-        ESP_LOGI(TAG, "TTS worker: speak text @%p", text);
+        ESP_LOGD(TAG, "TTS worker: speak text @%p", text);
 
         // Сообщаем UI, что ворона начала говорить → запустить GIF_TALK
         ui_bird_talk_anim_start();
@@ -146,26 +149,41 @@ extern "C" void start_tts_playback_impl(const char* text)
 
 extern "C" void stop_tts_playback_impl(void)
 {
-    // В текущей версии: просто глушим аудио и очищаем буфер.
-    // Himax-модуль закончит текущую фразу сам, но звук уже не будет выводиться.
-    ESP_LOGI(TAG, "stop_tts_playback_impl: stop AudioPlayer");
+    ESP_LOGI(TAG, "stop_tts_playback_impl: abort Himax TTS and stop audio");
+
+    // Аналог старого HM_DEV_CMD_STOP:
+    //  - говорим HimaxModule сбросить устройство
+    //  - останавливаем вывод звука и очищаем буфер
+    s_himax_module.requestAbort();
     s_audio_player.control(0);
+
+    // Ворона перестаёт говорить визуально
+    ui_bird_talk_anim_stop();
+    // НЕ вызываем ui_notify_tts_finished() — как и раньше при стопе
 }
 
 extern "C" void pause_tts_playback_impl(void)
 {
-    // Упрощённая «пауза»: тоже глушим аудио.
-    // Это НЕ настоящая пауза по позиции, а просто mute.
-    ESP_LOGI(TAG, "pause_tts_playback_impl: mute AudioPlayer");
-    s_audio_player.control(0);
+    ESP_LOGI(TAG, "pause_tts_playback_impl: pause Himax and mute audio");
+
+    // Логическая пауза:
+    //  - HimaxModule перестаёт читать данные с модуля
+    //  - звук глушится, буфер остаётся
+    s_himax_module.requestPause();
+    s_audio_player.mute();
 }
 
 extern "C" void resume_tts_playback_impl(void)
 {
-    // Возобновляем вывод (если в буфере ещё что-то есть).
-    ESP_LOGI(TAG, "resume_tts_playback_impl: resume AudioPlayer");
-    s_audio_player.control(1);
+    ESP_LOGI(TAG, "resume_tts_playback_impl: resume Himax and unmute audio");
+
+    // Продолжаем:
+    //  - снова читаем данные с модуля
+    //  - возвращаем звук
+    s_himax_module.requestResume();
+    s_audio_player.unmute();
 }
+
 
 
 bool i2c_bus_lock(int timeout_ms)
@@ -241,9 +259,9 @@ extern "C" void app_main()
         "tts_worker",
         4096,
         nullptr,
-        tskIDLE_PRIORITY,        // ниже, чем LVGL
+        tskIDLE_PRIORITY,   // пусть останется минимальным
         &s_tts_task,
-        tskNO_AFFINITY
+        0          
     );
     if (r != pdPASS) {
         ESP_LOGE(TAG, "Failed to create TTS worker task");

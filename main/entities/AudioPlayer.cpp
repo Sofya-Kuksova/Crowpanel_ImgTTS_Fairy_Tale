@@ -28,9 +28,12 @@ void AudioPlayer::task(void* arg)
         if (xEventGroupWaitBits(player->status_, STATUS_PLAYING, pdFALSE, pdFALSE, portMAX_DELAY) & STATUS_PLAYING) {
             read = fifo_ringbuf_read(player->audio_buffer_, buffer, player->frame_size_, portMAX_DELAY);
             if (read) {
-                ESP_LOGV(TAG, "RB, pop, %u", fifo_ringbuf_size(player->audio_buffer_));
+                // В продакшене лог лучше отключить: он вызывается на каждый аудиофрейм.
+                // Оставляем как опцию для отладки:
+                // ESP_LOGV(TAG, "RB, pop, %u", fifo_ringbuf_size(player->audio_buffer_));
                 i2s_tx_write(buffer, read, portMAX_DELAY);
             }
+
         }
     }
     free(buffer);
@@ -63,8 +66,13 @@ bool AudioPlayer::init(esp_expander::Base* io_expander, size_t frame_size_)
     }
     xEventGroupClearBits(status_, STATUS_PLAYING);
 
-    if (xTaskCreate(task, "AudioPlayer", 4096, this, 2, nullptr) != pdTRUE)
+    // Даем аудио приоритет повыше, чтобы оно вовремя кормило I2S.
+    if (xTaskCreate(task, "AudioPlayer", 4096, this, 4, nullptr) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "Unable to create audio player task");
         return false;
+    }
+
 
     return true;
 }
@@ -104,4 +112,22 @@ bool AudioPlayer::isOn()
 float AudioPlayer::getBufferUtilization()
 {
     return static_cast<float>(fifo_ringbuf_size(audio_buffer_)) / kRingBufferSize;
+}
+
+void AudioPlayer::mute()
+{
+    if (!io_expander_) {
+        return;
+    }
+    io_expander_->digitalWrite(SPK_MUTE_PIN, HIGH);
+    ESP_LOGD(TAG, "AudioPlayer: mute()");
+}
+
+void AudioPlayer::unmute()
+{
+    if (!io_expander_) {
+        return;
+    }
+    io_expander_->digitalWrite(SPK_MUTE_PIN, LOW);
+    ESP_LOGD(TAG, "AudioPlayer: unmute()");
 }

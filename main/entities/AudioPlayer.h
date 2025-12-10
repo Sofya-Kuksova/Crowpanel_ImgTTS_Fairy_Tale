@@ -13,6 +13,8 @@ public:
     bool control(uint8_t value);
     bool isOn();
     float getBufferUtilization();
+    void mute();
+    void unmute();
 
 private:
     static void task(void*);

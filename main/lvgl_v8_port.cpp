@@ -1,9 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: CC0-1.0
- */
-
 #include "esp_timer.h"
 #undef ESP_UTILS_LOG_TAG
 #define ESP_UTILS_LOG_TAG "LvPort"
@@ -12,6 +6,23 @@
 
 using namespace esp_panel::drivers;
 
+// --- LVGL task tuning ---
+// Если приоритет и интервалы не заданы через sdkconfig, задаём адекватные дефолты.
+// Ядро (LVGL_PORT_TASK_CORE) уже приходит из sdkconfig (CONFIG_LVGL_PORT_TASK_CORE=1),
+// поэтому его здесь НЕ переопределяем.
+
+#ifndef LVGL_PORT_TASK_PRIORITY
+#define LVGL_PORT_TASK_PRIORITY  5    // Достаточно высокий приоритет для UI
+#endif
+
+#ifndef LVGL_PORT_TASK_MIN_DELAY_MS
+#define LVGL_PORT_TASK_MIN_DELAY_MS 5 // Минимальная задержка между вызовами lv_timer_handler()
+#endif
+
+#ifndef LVGL_PORT_TASK_MAX_DELAY_MS
+#define LVGL_PORT_TASK_MAX_DELAY_MS 50 // Максимальная задержка; обычно LVGL сам выбирает внутри этого диапазона
+#endif
+
 #define LVGL_PORT_ENABLE_ROTATION_OPTIMIZED (1)
 #define LVGL_PORT_BUFFER_NUM_MAX            (2)
 
@@ -19,6 +30,7 @@ static SemaphoreHandle_t lvgl_mux               = nullptr; // LVGL mutex
 static TaskHandle_t lvgl_task_handle            = nullptr;
 static esp_timer_handle_t lvgl_tick_timer       = NULL;
 static void* lvgl_buf[LVGL_PORT_BUFFER_NUM_MAX] = {};
+
 
 #if LVGL_PORT_ROTATION_DEGREE != 0
 static void* get_next_frame_buffer(LCD* lcd)
