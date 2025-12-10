@@ -3,69 +3,76 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"      // очередь для TTS worker
+#include "freertos/queue.h"
 
 #include "esp_log.h"
 #include "esp_err.h"
-#include "esp_spiffs.h"          // esp_vfs_spiffs_conf_t, esp_vfs_spiffs_register
+#include "esp_spiffs.h"
 
 #include "esp_display_panel.hpp"
 #include "lvgl_v8_port.h"
 
-#include "ui.h"                  // ui_init
-#include "tts_bridge.h"     // register_start_tts_cb
+#include "ui.h"
+#include "tts_bridge.h"
 
-#include "HxTTS.h"
 #include "uart_manager.h"
-
 #include "uart_json.h"
 #include "ui_events.h"
 #include "user_name_store.h"
+
+// --- Новые заголовки из add-on ---
+#include "entities/AudioPlayer.h"
+#include "entities/HimaxModule.h"
+#include "entities/i2c_comm/i2c_master.h"
+#include "entities/i2c_comm/i2c_protocol.h"
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
 
 static const char* TAG = "main";
 
-HxTTS *g_hx_tts = nullptr;
+// --- Новый стек TTS + аудио ---
 
-// --- Новый код: очередь и таск для TTS ---
+static AudioPlayer   s_audio_player;
+static HimaxModule   s_himax_module;
 
-static QueueHandle_t s_tts_queue   = nullptr;
-static TaskHandle_t  s_tts_task    = nullptr;
+// Мьютекс для общей I2C-шины (как в эталоне)
+SemaphoreHandle_t    i2c_mtx = nullptr;
 
-static void tts_worker_task(void *arg)
+// Очередь и таск для TTS
+static QueueHandle_t s_tts_queue = nullptr;
+static TaskHandle_t  s_tts_task  = nullptr;
+
+static void tts_worker_task(void* arg)
 {
     (void)arg;
-    const char *text = nullptr;
+    const char* text = nullptr;
 
     ESP_LOGI(TAG, "TTS worker task started");
 
     for (;;) {
-        // Ждём новый текст для озвучки
-        if (xQueueReceive(s_tts_queue, &text, portMAX_DELAY) == pdTRUE) {
-            if (!text) {
-                continue;
-            }
+        if (xQueueReceive(s_tts_queue, &text, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (!text) {
+            continue;
+        }
 
-            if (!g_hx_tts) {
-                ESP_LOGE(TAG, "TTS worker: g_hx_tts == nullptr");
-                continue;
-            }
+        ESP_LOGI(TAG, "TTS worker: speak text @%p", text);
 
-            ESP_LOGI(TAG, "TTS worker: speak text @%p", text);
+        // Сообщаем UI, что ворона начала говорить → запустить GIF_TALK
+        ui_bird_talk_anim_start();
 
-            // Сообщаем UI, что ворона начала говорить → запустить GIF_TALK
-            ui_bird_talk_anim_start();
-
-            // ВАЖНО: TTS идёт не в LVGL-таске
-            g_hx_tts->sendString(text);
-            g_hx_tts->startPlayback();
-
+        // Теперь текст уходит в Himax add-on по I²C.
+        // Внутри HimaxModule:
+        //   - опрашивается статус,
+        //   - текст кладётся в буфер,
+        //   - модуль начинает генерировать PCM, который через AudioPlayer → I2S → динамик.
+        if (s_himax_module.sendText(text, pdMS_TO_TICKS(1000)) != 0) {
+            ESP_LOGE(TAG, "HimaxModule::sendText failed");
         }
     }
 }
-
 
 static bool fs_ready_cb(lv_fs_drv_t*) { return true; }
 
@@ -119,35 +126,9 @@ void lvgl_register_drive_S(void) {
     ESP_LOGI("LVFS","letters: %s", letters);   
 }
 
-
-
-static void checkStatus(HxTTS& tts)
-{
-    hm_status_t status;
-    if (tts.getStatus(status) != HxTTS::Error::OK) {
-        ESP_LOGE(TAG, "unable to read status register");
-        return;
-    }
-    ESP_LOGI(TAG, "status=%s", hm_status_to_str(status));
-}
-
-static void checkError(HxTTS& tts)
-{
-    hm_err_t error;
-    if (tts.getError(error) != HxTTS::Error::OK) {
-        ESP_LOGE(TAG, "unable to read error register");
-        return;
-    }
-    ESP_LOGI(TAG, "error=%s", hm_err_to_str(error));
-}
-
-extern "C" void start_tts_playback_impl(const char *text)
+extern "C" void start_tts_playback_impl(const char* text)
 {
     if (!text) {
-        return;
-    }
-    if (!g_hx_tts) {
-        ESP_LOGE(TAG, "start_tts_playback_impl: g_hx_tts == nullptr");
         return;
     }
     if (!s_tts_queue) {
@@ -155,53 +136,62 @@ extern "C" void start_tts_playback_impl(const char *text)
         return;
     }
 
-    // Текст — это указатель на константную строку из builtin_texts,
-    // её можно безопасно передавать по указателю.
-    const char *msg = text;
+    const char* msg = text;
 
-    // Не блокируем LVGL: либо кладём в очередь, либо логируем, что переполнена.
     if (xQueueSend(s_tts_queue, &msg, 0) != pdPASS) {
         ESP_LOGW(TAG, "start_tts_playback_impl: TTS queue full, drop request");
     }
 }
 
+
 extern "C" void stop_tts_playback_impl(void)
 {
-    if (!g_hx_tts) {
-        ESP_LOGW(TAG, "stop_tts_playback_impl: g_hx_tts == nullptr");
-        return;
-    }
-
-    // Принудительно остановить воспроизведение на модуле HX6538
-    g_hx_tts->stopPlayback();
+    // В текущей версии: просто глушим аудио и очищаем буфер.
+    // Himax-модуль закончит текущую фразу сам, но звук уже не будет выводиться.
+    ESP_LOGI(TAG, "stop_tts_playback_impl: stop AudioPlayer");
+    s_audio_player.control(0);
 }
-
-/* Новое: пауза/возобновление без сброса кейса */
 
 extern "C" void pause_tts_playback_impl(void)
 {
-    if (!g_hx_tts) {
-        ESP_LOGW(TAG, "pause_tts_playback_impl: g_hx_tts == nullptr");
-        return;
-    }
-
-    g_hx_tts->pausePlayback();
+    // Упрощённая «пауза»: тоже глушим аудио.
+    // Это НЕ настоящая пауза по позиции, а просто mute.
+    ESP_LOGI(TAG, "pause_tts_playback_impl: mute AudioPlayer");
+    s_audio_player.control(0);
 }
 
 extern "C" void resume_tts_playback_impl(void)
 {
-    if (!g_hx_tts) {
-        ESP_LOGW(TAG, "resume_tts_playback_impl: g_hx_tts == nullptr");
-        return;
-    }
-
-    g_hx_tts->resumePlayback();
+    // Возобновляем вывод (если в буфере ещё что-то есть).
+    ESP_LOGI(TAG, "resume_tts_playback_impl: resume AudioPlayer");
+    s_audio_player.control(1);
 }
 
 
+bool i2c_bus_lock(int timeout_ms)
+{
+    if (!i2c_mtx) {
+        ESP_LOGE(TAG, "i2c mutex is not initialized");
+        return false;
+    }
+    const TickType_t timeout_ticks =
+        (timeout_ms < 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+    return (xSemaphoreTake(i2c_mtx, timeout_ticks) == pdTRUE);
+}
+
+bool i2c_bus_unlock(void)
+{
+    if (!i2c_mtx) {
+        ESP_LOGE(TAG, "i2c mutex is not initialized");
+        return false;
+    }
+    xSemaphoreGive(i2c_mtx);
+    return true;
+}
 
 extern "C" void app_main()
 {
+    // --- SPIFFS как было ---
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/spiffs",
         .partition_label = "spiffs",
@@ -210,26 +200,37 @@ extern "C" void app_main()
     };
     ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
 
-    Board* board = new Board();
-    ESP_UTILS_CHECK_FALSE_EXIT(board->init(),  "Board init failed");
-    ESP_UTILS_CHECK_FALSE_EXIT(board->begin(), "Board begin failed");
-    ESP_UTILS_CHECK_FALSE_EXIT(lvgl_port_init(board->getLCD(), board->getTouch()),
-                               "LVGL init failed");
+    // --- I2C для Himax add-on (как в эталоне) ---
+    i2c_master_init();
 
-    lvgl_register_drive_S();
-
-    ui_init();
-
-    ESP_UTILS_CHECK_FALSE_EXIT(lvgl_port_start(), "LVGL start failed");
-
-    g_hx_tts = new HxTTS(HxTTS::BusType::UART);
-    if (!g_hx_tts) {
-        ESP_LOGE(TAG, "Failed to create HxTTS instance");
+    i2c_mtx = xSemaphoreCreateMutex();
+    if (!i2c_mtx) {
+        ESP_LOGE(TAG, "Create i2c mutex failed");
         return;
     }
 
-    // --- Новый код: очередь и worker для TTS ---
-    s_tts_queue = xQueueCreate(4, sizeof(const char *));
+    // --- Инициализация платы (LCD, touch, IO-expander) ---
+    Board* board = new Board();
+    ESP_UTILS_CHECK_FALSE_EXIT(board->init(),  "Board init failed");
+    ESP_UTILS_CHECK_FALSE_EXIT(board->begin(), "Board begin failed");
+
+    // --- Аудио-тракт: AudioPlayer + HimaxModule ---
+    auto* io_expander = board->getIO_Expander()->getBase();
+    s_audio_player.init(io_expander, PAYLOAD_SIZE);
+    s_himax_module.init(&s_audio_player);
+
+    // --- LVGL + UI ---
+    ESP_UTILS_CHECK_FALSE_EXIT(
+        lvgl_port_init(board->getLCD(), board->getTouch()),
+        "LVGL init failed"
+    );
+
+    lvgl_register_drive_S();
+    ui_init();
+    ESP_UTILS_CHECK_FALSE_EXIT(lvgl_port_start(), "LVGL start failed");
+
+    // --- Очередь и worker для TTS ---
+    s_tts_queue = xQueueCreate(4, sizeof(const char*));
     if (!s_tts_queue) {
         ESP_LOGE(TAG, "Failed to create TTS queue");
         return;
@@ -240,7 +241,7 @@ extern "C" void app_main()
         "tts_worker",
         4096,
         nullptr,
-        tskIDLE_PRIORITY,    // приоритет НИЖЕ, чем у LVGL (LVGL_PORT_TASK_PRIORITY=1)
+        tskIDLE_PRIORITY,        // ниже, чем LVGL
         &s_tts_task,
         tskNO_AFFINITY
     );
@@ -248,12 +249,12 @@ extern "C" void app_main()
         ESP_LOGE(TAG, "Failed to create TTS worker task");
         return;
     }
-    // --- конец нового кода ---
 
+    // Регистрируем коллбек для UI → TTS
     register_start_tts_cb(start_tts_playback_impl);
 
+    // UART JSON оставляем как был
     uart_json_init(on_text_update_from_uart);
-    
-    checkStatus(*g_hx_tts);
-    checkError(*g_hx_tts);
+
+    // checkStatus/checkError для HxTTS больше не нужны — протокол другой.
 }

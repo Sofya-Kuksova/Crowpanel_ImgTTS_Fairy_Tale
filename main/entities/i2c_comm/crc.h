@@ -1,6 +1,3 @@
-#ifndef _CRC_H_
-#define _CRC_H_
-
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,6 +21,3 @@ uint16_t crc16_compute(const crc16_table table, const crc16_config_t* config, co
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-
-
-#endif // _CRC_H_

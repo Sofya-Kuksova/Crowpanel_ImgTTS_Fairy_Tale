@@ -1,14 +1,17 @@
-#include "crc_table.h"
+#ifndef _CRC_TABLE_H_
+#define _CRC_TABLE_H_
+
+#include "crc.h"
 
 // CRC-16/CCITT-FALSE: poly=0x1021, init=0xFFFF, xorout=0x0000, no reflection
-const crc16_config_t crc16_ccitt_false_config = {.polynomial       = 0x1021,
-                                                 .initial_value    = 0xFFFF,
-                                                 .final_xor_value  = 0x0000,
-                                                 .input_reflected  = 0,
-                                                 .output_reflected = 0};
+constexpr crc16_config_t crc16_ccitt_false_config = {.polynomial       = 0x1021,
+                                                     .initial_value    = 0xFFFF,
+                                                     .final_xor_value  = 0x0000,
+                                                     .input_reflected  = 0,
+                                                     .output_reflected = 0};
 
 // Precomputed 256-entry lookup table
-const crc16_table crc16_lut = {
+constexpr crc16_table crc16_lut = {
     0x0,    0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7, 0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad,
     0xe1ce, 0xf1ef, 0x1231, 0x210,  0x3273, 0x2252, 0x52b5, 0x4294, 0x72f7, 0x62d6, 0x9339, 0x8318, 0xb37b, 0xa35a,
     0xd3bd, 0xc39c, 0xf3ff, 0xe3de, 0x2462, 0x3443, 0x420,  0x1401, 0x64e6, 0x74c7, 0x44a4, 0x5485, 0xa56a, 0xb54b,
@@ -30,10 +33,4 @@ const crc16_table crc16_lut = {
     0x2e93, 0x3eb2, 0xed1,  0x1ef0,
 };
 
-const crc16_config_t* get_crc16_config() {
-    return &crc16_ccitt_false_config;
-}
-
-const crc16_table* get_crc16_lut() {
-    return &crc16_lut;
-}
+#endif // _CRC_TABLE_H_

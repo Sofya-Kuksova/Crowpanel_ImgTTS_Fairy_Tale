@@ -2,20 +2,31 @@ idf_component_register(
     SRCS
     "lvgl_v8_port.cpp"
     "main.cpp"
-    "HxTTS.cpp"
+
     "uart.c"
-    "hm_ctrl/crc.c"
-    "hm_ctrl/crc_table.c"
-    "hm_ctrl/hm_comm_protocol.c"
-    "hm_ctrl/hm_regs.c"
     "uart_manager.c"
     "uart_json.c"
     "uart_rx_task.c"
-    "tts_bridge.cpp"
+
+    "entities/AudioPlayer.cpp"
+    "entities/HimaxModule.cpp"
+    "entities/i2c_comm/i2c_master.c"
+    "entities/i2s/i2s_tx.c"
+    "entities/i2c_comm/crc.c"
+
+    # "HxTTS.cpp"
+    # "hm_ctrl/crc.c"
+    # "hm_ctrl/crc_table.c"
+    # "hm_ctrl/hm_comm_protocol.c"
+    # "hm_ctrl/hm_regs.c"
+    # "tts_bridge.cpp"
 
     INCLUDE_DIRS
     .
-    "hm_ctrl"
+    # "hm_ctrl"
+    "entities"
+    "entities/i2c_comm"
+    "entities/i2s"
     PRIV_REQUIRES
     json
     REQUIRES
@@ -24,6 +35,7 @@ idf_component_register(
     lvgl__lvgl
     ui
     spiffs
+    ringbuf
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
