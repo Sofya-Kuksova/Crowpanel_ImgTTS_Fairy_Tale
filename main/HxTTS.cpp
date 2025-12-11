@@ -159,7 +159,7 @@ HxTTS::Error HxTTS::waitReady(uint32_t timeout)
         if (ret != Error::OK) {
             return ret;
         }
-        ESP_LOGI(TAG, "status=%s", hm_status_to_str(status));
+        ESP_LOGD(TAG, "status=%s", hm_status_to_str(status));
 
         if (status != HM_STATUS_BUSY) {
             break;

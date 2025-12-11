@@ -202,6 +202,13 @@ extern "C" void resume_tts_playback_impl(void)
 
 extern "C" void app_main()
 {
+    esp_log_level_set("HxTTS",     ESP_LOG_WARN);  
+    esp_log_level_set("HM_COMM",   ESP_LOG_WARN);  
+    esp_log_level_set("GIF_LOADING", ESP_LOG_WARN); 
+    esp_log_level_set("ui_events", ESP_LOG_INFO);  
+    esp_log_level_set("UIIMG",       ESP_LOG_WARN);
+
+
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/spiffs",
         .partition_label = "spiffs",
@@ -240,9 +247,9 @@ extern "C" void app_main()
         "tts_worker",
         4096,
         nullptr,
-        tskIDLE_PRIORITY,    // приоритет НИЖЕ, чем у LVGL (LVGL_PORT_TASK_PRIORITY=1)
+        tskIDLE_PRIORITY+1,    // приоритет НИЖЕ, чем у LVGL (LVGL_PORT_TASK_PRIORITY=1)
         &s_tts_task,
-        tskNO_AFFINITY
+        1
     );
     if (r != pdPASS) {
         ESP_LOGE(TAG, "Failed to create TTS worker task");
