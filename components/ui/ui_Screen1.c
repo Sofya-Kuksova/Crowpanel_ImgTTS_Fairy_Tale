@@ -24,27 +24,8 @@ lv_obj_t * ui_sett1 = NULL;
 lv_obj_t * ui_end2 = NULL;
 lv_obj_t * ui_Labelend2 = NULL;
 // event funtions
-void ui_event_ch1(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_CLICKED) {
-        /* логика ветвления сказки */
-        button_choose_1(e);
-        /* и переход на экран воспроизведения (большая картинка + TTS) */
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_FADE_ON, 10, 0, &ui_Screen2_screen_init);
-    }
-}
-
-void ui_event_ch2(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_CLICKED) {
-        button_choose_2(e);
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_FADE_ON, 10, 0, &ui_Screen2_screen_init);
-    }
-}
+void ui_event_ch1(lv_event_t * e) { ui_handle_choice1(e); }
+void ui_event_ch2(lv_event_t * e) { ui_handle_choice2(e); }
 
 
 void ui_event_sett1(lv_event_t * e)

@@ -800,7 +800,6 @@ bool lvgl_port_start(void)
     }
 
     ESP_UTILS_LOGD("Create LVGL task");
-    BaseType_t core_id = (LVGL_PORT_TASK_CORE < 0) ? tskNO_AFFINITY : LVGL_PORT_TASK_CORE;
     BaseType_t ret     = xTaskCreatePinnedToCore(lvgl_port_task, "lvgl", LVGL_PORT_TASK_STACK_SIZE, NULL,
                                                  LVGL_PORT_TASK_PRIORITY, &lvgl_task_handle, 0);
     ESP_UTILS_CHECK_FALSE_RETURN(ret == pdPASS, false, "Create LVGL task failed");
