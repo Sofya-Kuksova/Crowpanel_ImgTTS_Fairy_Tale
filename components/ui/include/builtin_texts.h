@@ -38,9 +38,6 @@ typedef enum {
     CASE_TXT_COUNT /* maximum slots available in UI wiring */
 } builtin_text_case_t;
 
-/* Returns the number of texts actually provided by the active scenario.
- * May be <= CASE_TXT_COUNT.
- */
 int builtin_text_count(void);
 
 const char* builtin_get_intro_text(void);

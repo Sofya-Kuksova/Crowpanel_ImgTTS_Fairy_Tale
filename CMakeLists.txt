@@ -5,12 +5,9 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 project(proj)
 
-# --- Build SPIFFS from folders: assets/, assets_s/, assets_l/ ---
-
 set(SPIFFS_SRC_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/spiffs_root")
 set(SPIFFS_STAGE_DIR "${CMAKE_BINARY_DIR}/spiffs_stage")
 
-# Проверяем, что все нужные каталоги существуют
 foreach(subdir assets assets_s assets_l)
   if(NOT EXISTS "${SPIFFS_SRC_DIR}/${subdir}")
     message(FATAL_ERROR "Missing folder: ${SPIFFS_SRC_DIR}/${subdir}")
@@ -22,17 +19,14 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E rm -rf "${SPIFFS_STAGE_DIR}"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIFFS_STAGE_DIR}"
 
-  # Базовые UI-элементы (рамки, иконки, и т.п.)
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${SPIFFS_SRC_DIR}/assets"
           "${SPIFFS_STAGE_DIR}/assets"
 
-  # Маленькие картинки сказки (Screen1)
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${SPIFFS_SRC_DIR}/assets_s"
           "${SPIFFS_STAGE_DIR}/assets_s"
 
-  # Большие картинки сказки (Screen2)
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${SPIFFS_SRC_DIR}/assets_l"
           "${SPIFFS_STAGE_DIR}/assets_l"

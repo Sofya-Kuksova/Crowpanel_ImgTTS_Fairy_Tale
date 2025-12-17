@@ -566,7 +566,7 @@ style.configure('TNotebook.Tab',
                 padding=(8,4), 
                 background=UNSELECTED_TAB_BG, 
                 foreground='black',
-                font=SMALL_FONT)  # <-- Добавьте эту строку для шрифта вкладок
+                font=SMALL_FONT)  
 style.map('TNotebook.Tab',
           background=[('selected', SELECTED_TAB_BG), ('!selected', UNSELECTED_TAB_BG)],
           foreground=[('selected', 'black'), ('!selected', 'black')])

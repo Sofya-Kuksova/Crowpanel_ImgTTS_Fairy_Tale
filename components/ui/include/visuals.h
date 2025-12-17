@@ -5,7 +5,6 @@
 
 typedef void (*img_loader_t)(void);
 
-/* Для каждого кейса сказки две версии изображения */
 typedef struct {
     const lv_img_dsc_t* img_s;
     img_loader_t        load_s;
@@ -13,7 +12,6 @@ typedef struct {
     img_loader_t        load_l;
 } case_visual_t;
 
-/* Интерфейсные картинки из components/ui/screens */
 extern lv_img_dsc_t ui_img_arrow_png;
 void ui_img_arrow_png_load(void);
 
@@ -44,12 +42,8 @@ void ui_img_sett_on_png_load(void);
 extern lv_img_dsc_t ui_img_speech_png;
 void ui_img_speech_png_load(void);
 
-/* Визуалы сказки (small/large) */
 extern const case_visual_t kVisuals[CASE_TXT_COUNT];
 
-/* Эти картинки ОТНОСЯТСЯ к интерфейсу ( /spiffs/assets )
- * и никогда не выгружаются менеджером картинок.
- */
 static inline bool is_pinned_image(const lv_img_dsc_t* d)
 {
     return d == &ui_img_arrow_png   ||

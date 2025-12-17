@@ -215,7 +215,6 @@ builtin_text_case_t builtin_text_get(void) {
 
 const char* builtin_get_intro_text(void)
 {
-    /* Буфер под собранную фразу (один статический, переиспользуем) */
     static char intro_buf[128];
 
     const char *stored_name = user_name_get();
@@ -223,14 +222,12 @@ const char* builtin_get_intro_text(void)
                         ? stored_name
                         : "my little friend";
 
-    /* Составляем строку целиком */
     snprintf(intro_buf, sizeof(intro_buf),
              "Hello, %s! Today I will tell you an exciting story.", who);
 
     return intro_buf;
 }
 
-// Финальная реплика рассказчика (после конца истории)
 const char* builtin_get_outro_text(void)
 {
     return "That was a wonderful story. Would you like to hear another one?";

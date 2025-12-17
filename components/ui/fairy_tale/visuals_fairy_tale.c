@@ -313,5 +313,4 @@ const case_visual_t kVisuals[CASE_TXT_COUNT] = {
         .img_l  = &ui_img_d16_l_png,
         .load_l = ui_img_d16_l_png_load,
     },
-    /* Remaining entries intentionally left zero-initialized */
 };

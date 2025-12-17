@@ -2,7 +2,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_heap_caps.h"
-#include "zlib.h"          // <-- NEW: zlib for decompression
+#include "zlib.h"          
 #include "esp_timer.h"
 
 #include "ui_img_manager.h"
@@ -12,47 +12,30 @@ static const char *TAG = "UIIMG";
 static void map_path(char *dst, size_t dst_sz, const char *src)
 {
     if (src && src[0] == 'S' && src[1] == ':') {
-        const char *p = src + 2;   // skip "S:"
-        if (*p == '/') p++;        // S:/assets/... -> assets/...
+        const char *p = src + 2;   
+        if (*p == '/') p++;        
 
-        /* S:assets/... -> /spiffs/assets/...  (элементы интерфейса) */
         if (strncmp(p, "assets/", 7) == 0) {
             snprintf(dst, dst_sz, "/spiffs/%s", p);
             return;
         }
 
-        /* S:assets_s/... -> /spiffs/assets_s/...  (маленькие картинки сказки) */
         if (strncmp(p, "assets_s/", 9) == 0) {
             snprintf(dst, dst_sz, "/spiffs/%s", p);
             return;
         }
 
-        /* S:assets_l/... -> /spiffs/assets_l/...  (большие картинки сказки) */
         if (strncmp(p, "assets_l/", 9) == 0) {
             snprintf(dst, dst_sz, "/spiffs/%s", p);
             return;
         }
 
-        /* всё остальное — просто под /spiffs */
         snprintf(dst, dst_sz, "/spiffs/%s", p);
     } else {
         snprintf(dst, dst_sz, "%s", src ? src : "");
     }
 }
 
-/**
- * Load image data from SPIFFS into PSRAM.
- *
- * Behavior:
- *   - If file size on flash == `size` (expected uncompressed size):
- *       treat file as RAW image and just read `size` bytes.
- *   - If file size != `size`:
- *       treat file as COMPRESSED zlib data; read the whole file and
- *       decompress into a PSRAM buffer of `size` bytes.
- *
- * Returns pointer to PSRAM buffer with uncompressed image or NULL on error.
- * Caller is responsible for freeing the buffer with heap_caps_free().
- */
 uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
 {
     if (!fname_S || size == 0) {
@@ -61,7 +44,7 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
         return NULL;
     }
 
-    uint64_t t_start_us = esp_timer_get_time();  // <-- старт замера
+    uint64_t t_start_us = esp_timer_get_time();  
 
     char real[256];
     map_path(real, sizeof(real), fname_S);
@@ -75,7 +58,6 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
         return NULL;
     }
 
-    // Determine file size on flash
     if (fseek(fp, 0, SEEK_END) != 0) {
         ESP_LOGE(TAG, "fseek(SEEK_END) failed: %s", real);
         fclose(fp);
@@ -92,7 +74,6 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
     size_t file_size = (size_t)file_size_long;
     rewind(fp);
 
-    /* ----- Case 1: RAW image (file size matches expected uncompressed size) ----- */
     if (file_size == size) {
         ESP_LOGD(TAG, "image is RAW (%u bytes), reading directly", (unsigned)file_size);
 
@@ -124,12 +105,10 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
         return buf;
     }
 
-    /* ----- Case 2: COMPRESSED image (zlib) ----- */
     ESP_LOGD(TAG,
              "image assumed COMPRESSED (file=%u bytes, uncompressed=%u)",
              (unsigned)file_size, (unsigned)size);
 
-    // Temporary buffer for compressed data (normal 8-bit RAM is enough)
     uint8_t *comp_buf = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_8BIT);
     if (!comp_buf) {
         ESP_LOGE(TAG, "heap_caps_malloc(comp_buf, %u) failed", (unsigned)file_size);
@@ -147,7 +126,6 @@ uint8_t* _ui_load_binary_direct(const char* fname_S, uint32_t size)
         return NULL;
     }
 
-    // Output buffer in PSRAM for UNCOMPRESSED image
     uint8_t *out_buf = (uint8_t*)heap_caps_malloc(size,
                             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!out_buf) {

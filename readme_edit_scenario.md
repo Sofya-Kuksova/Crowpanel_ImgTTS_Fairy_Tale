@@ -8,16 +8,26 @@ components/
     include/
       builtin_texts.h            (←) story node IDs (case enum)
     fairy_tale/                  (←) scenario-specific visuals
-      visuals_fairy_tale.c       (←) mapping story nodes → LVGL images + loaders
-      ui_img_fairy_tale_01_png.c (←) C image descriptors (wrappers for binary frames)
-      ui_img_fairy_tale_02_png.c
-      ...
-    builtin_texts_fairy_tale.c   (←) story text fragments for tinyTTS
-    story_fairy_tale.c           (←) branching logic, state machine, node transitions
+      visuals_fairy_tale.c       (←) mapping story nodes → {small+large} LVGL images
+      ui_s/                        (←) C image wrappers for small (Screen1)
+        ui_img_*_s_png.c
+        ...
+      ui_l/                        (←) C image wrappers for large (Screen2)
+        ui_img_*_l_png.c
+        ...
+    builtin_texts_fairy_tale.c   (←) narration texts + intro/outro phrases for tinyTTS
+    story_fairy_tale.c           (←) branching logic (questions/choices/transitions)
+    ui_img_loading_gif.c           (←) GIF crow animations (gifdec)
 spiffs_root/
-  assets_fairy_tale/             (←) .bin files for scenario cards
-    ui_img_fairy_tale_01_png.bin
-    ui_img_fairy_tale_02_png.bin
+  assets/                          (←) UI assets + GIFs
+    crow_idle.gif
+    crow_talk.gif
+    ...
+  assets_s/                        (←) small story images
+    ui_img_*_s_png.bin
+    ...
+  assets_l/                        (←) large story images
+    ui_img_*_l_png.bin
     ...
 ```
 
@@ -25,16 +35,33 @@ spiffs_root/
 
 ## 2) Produce RAW Binary Images
 
+You now need two versions of each story illustration:
+- small (S) for Screen1 → store in `spiffs_root/assets_s/`
+- large (L) for Screen2 → store in `spiffs_root/assets_l/`
+
 ### Option A — SquareLine Studio (SLS)
 
 1. Open the project in **SquareLine Studio** (LVGL v8).  
 2. Create/Configure export:
    - set the **export path**;
    - set output format to **binary raw**.
-3. Import images: *Assets* → **Import** (PNG / UI frame sample size 578×339).  
+3. Import images: *Assets* → **Import** (PNG).  
 4. Export/Generate: **Export UI files**.
-   - Copy generated `*.bin` from `export_root/drive/assets` to `/spiffs_root/assets_fairy_tale`.
-   - Copy generated C arrays `img_*.c` from your “UI file export path” to `/components/ui/fairy_tale`.
+   - Copy generated C wrappers for small images `img_*.c` from your “UI file export path” to `components/ui/fairy_tale/ui_s/`.
+   - Copy generated C wrappers for large images `img_*.c` from your “UI file export path” to `components/ui/fairy_tale/ui_l/`.
+   - Copy generated small `*.bin` from `export_root/drive/assets` to `spiffs_root/assets_s/`.
+   - Copy generated large `*.bin` from `export_root/drive/assets` to `spiffs_root/assets_l/`.
+
+> ### Mandatory step is zlib compression story `.bin`
+
+The `assets_s/` and `assets_l/` image sets are large enough that storing them as raw RGB565 binaries may exceed the SPIFFS partition size (14 MB).  
+Therefore, after copying the generated `.bin` files into `spiffs_root/assets_s/` and `spiffs_root/assets_l/`, you must compress them with zlib before building `spiffs.bin`.
+
+- Run the script `zlib_script.py` from `spiffs_root/`:
+   ```bash
+   python zlib_script.py
+   ```
+The script replaces each ui_img_*_png.bin with its zlib-compressed version.
 
 ### Option B — LVGL Image Converter (official online tool)
 
@@ -42,10 +69,13 @@ spiffs_root/
 2. Upload PNG/JPG.  
 3. Parameters:
    - **Color format:** `True color (RGB565)`;
-   - **Alpha:** `None` (or as required);
+   - **Alpha:** `None`;
    - **Output:** `Binary`.  
-4. Download `*.bin` and place them in `/spiffs_root/assets_fairy_tale`.  
-   For C arrays, select **C array** and save resulting `img_*.c` files into `/components/ui/fairy_tale`.
+4. Download `*.bin` and place them:
+   - small → `spiffs_root/assets_s/`
+   - large → `spiffs_root/assets_l/`  
+ 
+The runtime loader detects compressed binaries automatically: if the file size on flash differs from the expected uncompressed size, the file is treated as zlib-compressed and decompressed into PSRAM.
 
 ---
 
@@ -70,37 +100,45 @@ typedef enum {
 
 ### 3.2 Provide text fragments for tinyTTS
 
-Edit `components/ui/builtin_texts_fairy_tale.c` and define the story fragments for each case ID.
+Edit `components/ui/builtin_texts_fairy_tale.c` and define the narration fragment for each `builtin_text_case_t`.
 
-Typical pattern:
+- Story fragments array:
 
 ```c
-#include "builtin_texts.h"
+static const char* kThirdTexts[] = {
+    // A (CASE_TXT_01)
+    "Once upon a time ...",
 
-const char* builtin_text_set(builtin_text_case_t id) {
-    switch (id) {
-        case CASE_TXT_01:
-            return "Once upon a time, ...";
-        /* ... existing cases ... */
-        // case CASE_TXT_02:
-        //     return "The heroine enters the dark forest...";
-        default:
-            return "";
-    }
-}
+    // B1 (CASE_TXT_02)
+    "Snow White walked ...",
+
+    /* ... more fragments ... */
+
+    // D16 (CASE_TXT_31)
+    "At dawn, the forest awoke ..."
+};
 ```
+
+- Intro / Outro phrases:
+
+The file also defines two fixed narrator phrases:
+
+`builtin_get_intro_text()` — intro phrase played at the beginning.
+It injects the user name from user_name_store and falls back to "my little friend" if no name is stored.
+
+`builtin_get_outro_text()` — outro phrase played when the story ends (before showing “Try again”).
+
 
 ---
 
 ### 3.3 Prepare raw image binaries (.bin)
 
-Convert your PNG/JPG to LVGL **binary** (`True color / RGB565`) and place them under:
+Convert your PNG to LVGL **binary** (`True color / RGB565`) and place them under:
 
 ```
-assets/
-  ui_img_fairy_tale_01_png.bin
-  ui_img_fairy_tale_02_png.bin
-  ui_img_fairy_tale_03_png.bin
+Small (S) → spiffs_root/assets_s/ui_img_*_s_png.bin
+
+Large (L) → spiffs_root/assets_l/ui_img_*_l_png.bin
 ```
 
 > Use the exact filenames you’ll reference in your C image wrappers (next step).
@@ -112,10 +150,9 @@ assets/
 After generate **C arrays** for images (`img_*.c`), store them **in the scenario folder**  
 
 ```
-components/ui/
-  ui_img_fairy_tale_01_png.c
-  ui_img_fairy_tale_02_png.c
-  ui_img_fairy_tale_03_png.c
+components/ui/fairy_tale/ui_s/ui_img_*_s_png.c
+
+components/ui/fairy_tale/ui_l/ui_img_*_l_png.c
 ```
 ---
 
@@ -130,15 +167,21 @@ Example pattern:
 
 typedef void (*img_loader_t)(void);
 
-typedef struct { 
-  const lv_img_dsc_t* img; 
-  img_loader_t load; 
+typedef struct {
+    const lv_img_dsc_t* img_s;
+    img_loader_t        load_s;
+    const lv_img_dsc_t* img_l;
+    img_loader_t        load_l;
 } case_visual_t;
 
 static const case_visual_t kVisuals[CASE_TXT_COUNT] = {
-    [CASE_TXT_01] = { &ui_img_fairy_tale_01_png, ui_img_fairy_tale_01_png_load },
-    /* ... existing mappings ... */
-    // [CASE_TXT_11] = { &ui_img_fairy_tale_11_png, ui_img_fairy_tale_11_png_load },
+    [CASE_TXT_*] = {
+        .img_s  = &ui_img_*_s_png,
+        .load_s = ui_img_*_s_png_load,
+        .img_l  = &ui_img_*_l_png,
+        .load_l = ui_img_*_l_png_load,
+    },
+    ...
 };
 ```
 
@@ -193,7 +236,7 @@ At the top of the file, a set of macros is used to give readable aliases to the 
 Each node contains:
 
 - the **question** text shown above the choices,
-- two **choice labels** (`choice1`, `choice2`) used for `ui_choice1` and `ui_choice2`,
+- two **choice labels** (`choice1`, `choice2`),
 - a flag `is_final` indicating whether this node is a terminal ending,
 - and the IDs of the next nodes (`next1`, `next2`) for each choice.
 
@@ -257,13 +300,40 @@ static const story_node_t NODES[CASE_TXT_COUNT] = {
 ```
 
 ---
+### 3.7 Narrator GIFs (idle/talk) and speed control
 
-### 3.7 Rebuild (clean when assets change)
+The narrator animation is rendered from GIF files stored in SPIFFS:
+
+- `spiffs_root/assets/crow_idle.gif` — idle animation
+- `spiffs_root/assets/crow_talk.gif` — talking animation
+
+GIF decoding is done with **gifdec**. Each screen has its own LVGL image object:
+- `ui_bird1` (Screen1)
+- `ui_bird2` (Screen2)
+- `ui_bird3` (Screen3)
+
+All settings are located in `components/ui/ui_img_loading_gif.c`.
+
+You can change GIF paths:
+```c
+#define UI_BIRD_NORM_GIF_PATH  "/spiffs/assets/crow_idle.gif"
+#define UI_BIRD_TALK_GIF_PATH  "/spiffs/assets/crow_talk.gif"
+```
+
+And tune animation speed:
+```c
+#define GIF_IDLE_SPEED_PCT   120u
+#define GIF_TALK_SPEED_PCT   300u
+```
+
+---
+
+### 3.8 Rebuild (clean when assets change)
 
 ```
 idf.py fullclean
 idf.py build
-idf.py -p COMx flash monitor
+idf.py -p COMx flash
 ```
 
 > The clean build ensures the SPIFFS image is rebuilt with your new `.bin` files.

@@ -81,6 +81,7 @@ typedef struct _ui_anim_user_data_t {
     int32_t imgset_size;
     int32_t val;
 } ui_anim_user_data_t;
+
 void _ui_anim_callback_free_user_data(lv_anim_t * a);
 
 void _ui_anim_callback_set_x(lv_anim_t * a, int32_t v);
@@ -138,8 +139,6 @@ void _ui_spinbox_step(lv_obj_t * target, int val)
 
 void _ui_switch_theme(int val)
 ;
-
-
 
 #ifdef __cplusplus
 } /*extern "C"*/

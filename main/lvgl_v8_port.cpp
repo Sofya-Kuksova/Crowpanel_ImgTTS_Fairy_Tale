@@ -723,9 +723,6 @@ IRAM_ATTR bool onDrawBitmapFinishCallback(void* user_data)
     return false;
 }
 
-// предполагается, что lvgl_mux, lvgl_task_handle и прочие глобальные переменные объявлены в том же .cpp
-// или в заголовке. Если нет — оставьте их как раньше.
-
 bool lvgl_port_init(LCD* lcd, Touch* tp)
 {
     ESP_UTILS_CHECK_FALSE_RETURN(lcd != nullptr, false, "Invalid LCD device");
@@ -741,7 +738,6 @@ bool lvgl_port_init(LCD* lcd, Touch* tp)
     lv_disp_t* disp   = nullptr;
     lv_indev_t* indev = nullptr;
 
-    /* Инициализация ядра LVGL и тиков — делаем это здесь */
     lv_init();
 #if ! LV_TICK_CUSTOM
     ESP_UTILS_CHECK_FALSE_RETURN(tick_init(), false, "Initialize LVGL tick failed");
@@ -784,16 +780,12 @@ bool lvgl_port_init(LCD* lcd, Touch* tp)
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
     ESP_UTILS_CHECK_NULL_RETURN(lvgl_mux, false, "Create LVGL mutex failed");
 
-    /* ВАЖНО: НЕ создаём LVGL таск тут — это делается в lvgl_port_start().
-       Это позволяет вызвать ui_init() (создать все объекты) до старта рендера. */
-
     ESP_UTILS_LOGI("LVGL initialized (task not started). Call lvgl_port_start() to start rendering.");
     return true;
 }
 
 bool lvgl_port_start(void)
 {
-    /* Если уже запущен — ничего не делать */
     if (lvgl_task_handle != NULL) {
         ESP_UTILS_LOGW("lvgl_port_start: LVGL task already running");
         return true;

@@ -50,13 +50,10 @@ void ui_init(void)
     ui_Screen2_screen_init();
     ui_Screen3_screen_init();
 
-    /* Стартуем сказку: первый кейс, выставляем картинки, через 1 сек. пойдёт TTS */
     ui_story_start();
 
-    /* Один GIF-декодер для ui_bird1/ui_bird2/ui_bird3 */
     ui_img_loading_gif_load();
 
-    /* Стартовый экран — Screen2 (большая картинка + TTS) */
     lv_disp_load_scr(ui_Screen2);
 }
 

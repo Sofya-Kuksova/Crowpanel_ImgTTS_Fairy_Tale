@@ -37,8 +37,7 @@ static void tts_monitor_task(void *arg)
         ESP_LOGW("HxTTS", "waitReady returned %d", static_cast<int>(err));
     }
 
-    // TTS закончил говорить → останавливаем GIF_TALK и возвращаем первый кадр
-    ui_bird_talk_anim_stop();
+     ui_bird_talk_anim_stop();
 
     ui_notify_tts_finished();
 
@@ -151,7 +150,7 @@ HxTTS::Error HxTTS::waitReady(uint32_t timeout)
     
     hm_status_t status;
     uint32_t elapsed_ms                  = 0;
-    static constexpr uint32_t poll_ms    = 200; // опрашиваем раз в 200 мс
+    static constexpr uint32_t poll_ms    = 200; 
     const TickType_t poll_ticks          = pdMS_TO_TICKS(poll_ms);
 
     do {
