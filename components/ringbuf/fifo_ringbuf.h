@@ -33,11 +33,12 @@ void fifo_ringbuf_release(fifo_ringbuf_t* rb);
  * @param[in]  rb    fifo ringbuf instance
  * @param[in]  data  Pointer to data
  * @param[in]  size  Data size in bytes
+ * @param[in]  timeout  Wait for available space
  *
  * @return
  *       - >=0   Bytes wrote
  */
-size_t fifo_ringbuf_write(fifo_ringbuf_t* rb, const void* data, size_t size);
+size_t fifo_ringbuf_write(fifo_ringbuf_t* rb, const void* data, size_t size, size_t timeout);
 /**
  * @brief  Read from ringbuf
  *

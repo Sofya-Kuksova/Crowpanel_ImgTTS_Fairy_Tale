@@ -5,7 +5,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "freertos/task.h"
 
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -16,165 +15,116 @@
 #include "i2c_comm/crc_table.h"
 #include "i2c_comm/i2c_master.h"
 
-extern "C" {
-#include "ui_events.h"
-#include "ui.h"
-}
-
-
 #define HIMAX_RESET_PIN GPIO_NUM_0
 
-#define STATUS_HM_IDLE BIT0
-#define STATUS_HM_BUSY BIT1
+#define STATUS_HM_BUSY   BIT0
+#define STATUS_HM_PAUSED BIT1
 
 extern bool i2c_bus_lock(int timeout_ms);
 extern bool i2c_bus_unlock(void);
-static TaskHandle_t s_himax_task_handle = nullptr;
-
-static const char *TAG = "HimaxModule";
-
-// Для этого файла понижаем «болтливость» логов.
-// Все ESP_LOGD/ESP_LOGV будут вырезаны на уровне сборки,
-// если LOG_LOCAL_LEVEL < ESP_LOG_DEBUG.
-#undef LOG_LOCAL_LEVEL
-#define LOG_LOCAL_LEVEL ESP_LOG_WARN
-
 
 void HimaxModule::task(void* arg)
 {
     HimaxModule* himax_module = static_cast<HimaxModule*>(arg);
-    esp_err_t    err;
-    size_t       reset_counter = 0;
+    esp_err_t err;
+    const TickType_t xDelay = pdMS_TO_TICKS(14); // audio frame is 16ms, i2c tx is around 12ms
 
     while (1) {
         if (xEventGroupWaitBits(himax_module->status_, STATUS_HM_BUSY, pdFALSE, pdFALSE, portMAX_DELAY) &
-            STATUS_HM_BUSY)
-        {
+            STATUS_HM_BUSY) {
             size_t packet_counter            = 0;
             size_t corrupted_packets_counter = 0;
-            uint8_t status;
-            bool    stop    = false;
-            bool    aborted = false;     // <--- новое
+            bool stop                        = false;
+            uint8_t status                   = 0xff;
 
-            while (!stop) {
-                // --- ABORT: полная остановка TTS, как старый STOP ---
-                if (himax_module->abort_requested_) {
-                    ESP_LOGI(TAG, "Abort requested, resetting Himax device");
-                    himax_module->abort_requested_ = false;
-                    himax_module->dev_reset();
-                    aborted = true;
-                    stop    = true;
+            ESP_LOGI(TAG, "Start audio recv");
+
+            TickType_t xLastWakeTime = xTaskGetTickCount();
+            while (! stop) {
+                if (xEventGroupGetBits(himax_module->status_) & STATUS_HM_PAUSED) {
                     break;
                 }
-
                 size_t bursted_packets = 0;
-                status                 = himax_module->dev_get_status();
-
+                err                    = himax_module->dev_get_status(status);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Unable to get dev status");
+                    continue;
+                }
                 switch (status) {
                 case ST_OUTPUT_RDY: {
-                    // --- PAUSE: не читаем данные, просто ждём ---
-                    if (himax_module->paused_) {
-                        vTaskDelay(pdMS_TO_TICKS(50));
-                        break;
-                    }
-
+                    xLastWakeTime = xTaskGetTickCount();
                     while (1) {
-                        transaction_t tr = {.cmd = CMD_SEND_DATA, .data_length = 0};
                         data_packet_t data;
-
-                        i2c_bus_lock(-1);
-                        err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(1000));
-                        err = i2c_master_recv((void*)&data, sizeof(data_packet_t), pdMS_TO_TICKS(1000));
-                        i2c_bus_unlock();
-
-                        uint16_t crc =
-                            crc16_compute(crc16_lut, &crc16_ccitt_false_config,
-                                          (const uint8_t*)data.data, data.data_length);
-
-                        ESP_LOGV(TAG, "rx packet: i2c_err=%d, err=%u, idx=%u, total=%u, length=%u, crc=%u(%u)",
-                                 err, data.error, data.index, data.total, data.data_length, data.crc, crc);
-
-                        if (err == ESP_ERR_TIMEOUT) {
-                            ESP_LOGI(TAG, "Reset device: %u", reset_counter++);
-                            himax_module->dev_reset();
-                            stop = true;
+                        memset(&data, 0, sizeof(data_packet_t));
+                        err = himax_module->dev_get_data_packet(data);
+                        if (err != ESP_OK) {
                             break;
                         }
-                        if (err != ESP_OK || data.error != ERR_OK) {
+                        if (data.error != ERR_OK) {
                             break;
                         }
+                        uint16_t crc = crc16_compute(crc16_lut, &crc16_ccitt_false_config, (const uint8_t*)data.data,
+                                                     data.data_length);
+                        ESP_LOGD(TAG, "rx packet: err=%u, idx=%u, total=%u, length=%u, crc=%u(%u)", data.error,
+                                 data.index, data.total, data.data_length, data.crc, crc);
                         if (data.crc != crc) {
                             corrupted_packets_counter++;
-                            break;
+                            continue;
                         }
-
                         bursted_packets++;
                         packet_counter++;
-
-                        if (himax_module->player_) {
-                        himax_module->player_->write(data.data, data.data_length);
-
-                        if (!himax_module->player_->isOn() &&
-                            packet_counter > kPlayerStartFramesThreshold) {
-                            himax_module->player_->control(1);
-                        }
-
-                        if (himax_module->player_->getBufferUtilization() > 0.8f) {
-                            break;
-                        }
-                        }
-
-                    // DEBUG: на проде отключаем — иначе он забивает UART и рвёт звук.
-                    // Оставляем закомментированным на случай сложной отладки.
-                    // ESP_LOG_BUFFER_HEXDUMP(TAG, &data, sizeof(data_packet_t), ESP_LOG_VERBOSE);
-
+                        himax_module->player_->write(data.data, data.data_length, portMAX_DELAY);
+                        ESP_LOG_BUFFER_HEXDUMP(TAG, &data, sizeof(data_packet_t), ESP_LOG_VERBOSE);
+                        vTaskDelayUntil(&xLastWakeTime, xDelay);
                     }
                 } break;
-
                 case ST_IDLE:
-                    stop = true;
-                    break;
-
+                    // make sure that dev have started
+                    if (packet_counter != 0) {
+                        stop = true;
+                        break;
+                    }
                 default:
                     break;
                 }
-
                 if (bursted_packets > 0) {
-                    ESP_LOGV(TAG, "Bursted %u packets", bursted_packets);
+                    ESP_LOGI(TAG, "Bursted %u packets", bursted_packets);
                 }
-
-                #define BASELINE_DELAY 100
-                #define DELAY_COEFF    100
-                #define TARGET_UTIL    0.5
-                float util = himax_module->player_->getBufferUtilization();
-                int   delay =
-                    BASELINE_DELAY + DELAY_COEFF * (util - TARGET_UTIL);
-                delay = std::clamp(delay, 0, BASELINE_DELAY * 2);
-                ESP_LOGV(TAG, "rb: util=%f, delay=%u", util, delay);
-                vTaskDelay(pdMS_TO_TICKS(delay));
+                if (packet_counter == 0) {
+                    vTaskDelay(pdMS_TO_TICKS(500)); // lower frequency while dev is busy
+                } else {
+                    vTaskDelayUntil(&xLastWakeTime, xDelay);
+                }
             }
-
             if (packet_counter > 0) {
-                ESP_LOGV(TAG, "Recieved %u packets", packet_counter);
+                ESP_LOGI(TAG, "Recieved %u packets", packet_counter);
             }
             if (corrupted_packets_counter > 0) {
                 ESP_LOGW(TAG, "Recieved %u corrupted packets", corrupted_packets_counter);
             }
-
-            if (himax_module->player_) {
-                himax_module->player_->control(0);
-            }
             xEventGroupClearBits(himax_module->status_, STATUS_HM_BUSY);
-
-            // --- Естественный конец фразы: сообщаем UI ---
-            if (!aborted) {
-                ui_bird_talk_anim_stop();
-                ui_notify_tts_finished();
-            }
         }
     }
 }
 
+int HimaxModule::waitReady(size_t timeout)
+{
+    static constexpr size_t polling_period = pdMS_TO_TICKS(500);
+    uint8_t status                         = 0xff;
+    size_t elapsed                         = 0;
+    do {
+        esp_err_t ret = dev_get_status(status);
+        if (ret != ESP_OK) {
+            return ret;
+        }
+        vTaskDelay(polling_period);
+        elapsed += polling_period;
+        if (elapsed > timeout) {
+            return ESP_ERR_TIMEOUT;
+        }
+    } while (status != ST_IDLE);
+    return 0;
+}
 
 int HimaxModule::sendText(const char* str, size_t xTicksToWait)
 {
@@ -182,101 +132,225 @@ int HimaxModule::sendText(const char* str, size_t xTicksToWait)
         return -1;
     }
 
-    esp_err_t err;
-    size_t n = strlen(str);
-    ESP_LOGD(TAG, "send text, len=%u", (unsigned)n);
-
-    transaction_t tr = {.cmd = CMD_RECV_MSG, .data_length = static_cast<uint16_t>(n)};
-
-    i2c_bus_lock(-1);
-    if (!i2c_master_dev_available()) {
-        i2c_bus_unlock();
-        ESP_LOGW(TAG, "Himax addon is not available on bus");
+    if (dev_probe() < 0) {
         return -1;
     }
-    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(1000));
+
+    if (xEventGroupGetBits(status_) & STATUS_HM_PAUSED) {
+        stop();
+        if (waitReady(xTicksToWait) < 0) {
+            return -1;
+        }
+    }
+
+    esp_err_t err = ESP_OK;
+    size_t n      = strlen(str);
+    ESP_LOGI(TAG, "send str=\"%s\", len=%u", str, n);
+
+    transaction_t tr = {.cmd = CMD_RECV_MSG, .data_length = static_cast<uint16_t>(n)};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), xTicksToWait);
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
     err = i2c_master_send((void*)str, n, pdMS_TO_TICKS(1000));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
+    i2c_bus_unlock();
+
+    return 0;
+}
+
+int HimaxModule::start()
+{
+    if (xEventGroupGetBits(status_) & STATUS_HM_BUSY) {
+        return -1;
+    }
+
+    esp_err_t err    = ESP_OK;
+    transaction_t tr = {.cmd = CMD_START, .data_length = 0};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
     i2c_bus_unlock();
 
     xEventGroupSetBits(status_, STATUS_HM_BUSY);
     return 0;
 }
 
+int HimaxModule::stop()
+{
+    if (dev_probe() < 0) {
+        return -1;
+    }
+
+    esp_err_t err    = ESP_OK;
+    transaction_t tr = {.cmd = CMD_STOP, .data_length = 0};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
+    i2c_bus_unlock();
+
+    xEventGroupClearBits(status_, STATUS_HM_BUSY | STATUS_HM_PAUSED);
+    player_->stop();
+    return 0;
+}
+
+int HimaxModule::pause()
+{
+    const auto xBits = xEventGroupGetBits(status_);
+    if ((xBits & STATUS_HM_PAUSED) || ! (xBits & STATUS_HM_BUSY)) {
+        return -1;
+    }
+
+    if (dev_probe() < 0) {
+        return -1;
+    }
+
+    esp_err_t err    = ESP_OK;
+    transaction_t tr = {.cmd = CMD_PAUSE, .data_length = 0};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
+    i2c_bus_unlock();
+
+    xEventGroupSetBits(status_, STATUS_HM_PAUSED);
+    player_->pause();
+    return 0;
+}
+
+int HimaxModule::resume()
+{
+    if (! (xEventGroupGetBits(status_) & STATUS_HM_PAUSED)) {
+        return -1;
+    }
+
+    if (dev_probe() < 0) {
+        return -1;
+    }
+
+    esp_err_t err    = ESP_OK;
+    transaction_t tr = {.cmd = CMD_RESUME, .data_length = 0};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        return -1;
+    }
+    i2c_bus_unlock();
+
+    xEventGroupClearBits(status_, STATUS_HM_PAUSED);
+    xEventGroupSetBits(status_, STATUS_HM_BUSY);
+    player_->resume();
+    return 0;
+}
+
 bool HimaxModule::init(AudioPlayer* player)
 {
-    player_ = player;
+    dev_reset_counter_ = 0;
+    player_            = player;
 
     status_ = xEventGroupCreate();
-    if (!status_) {
+    if (! status_) {
         ESP_LOGE(TAG, "Unable to crate status bits");
         return false;
     }
-    xEventGroupSetBits(status_, STATUS_HM_IDLE);
 
-    abort_requested_ = false;
-    paused_          = false;
-
-    // ВОЗВРАЩАЕМ исходный приоритет (5), но пинним на ядро 0
-    if (xTaskCreatePinnedToCore(
-        task,
-        "himax_i2c",
-        4096,
-        this,
-        3,              // понижаем приоритет, чтобы не душить LVGL и AudioPlayer
-        &s_himax_task_handle,
-        0               // ядро 0
-    ) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "Failed to create himax_i2c task");
+    if (xTaskCreate(task, "himax_i2c", 4096, this, 1, nullptr) != pdTRUE)
         return false;
-    }
-
 
     gpio_reset_pin(HIMAX_RESET_PIN);
     gpio_set_direction(HIMAX_RESET_PIN, GPIO_MODE_OUTPUT);
     dev_reset();
     vTaskDelay(pdMS_TO_TICKS(300));
-    dev_get_status();
+
+    if (dev_probe() < 0) {
+        return false;
+    }
+
+    uint8_t status;
+    esp_err_t err = dev_get_status(status);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Unable to get dev status");
+        return false;
+    }
 
     return true;
 }
 
-
-void HimaxModule::requestAbort()
-{
-    abort_requested_ = true;
-}
-
-void HimaxModule::requestPause()
-{
-    paused_ = true;
-}
-
-void HimaxModule::requestResume()
-{
-    paused_ = false;
-}
-
-bool HimaxModule::isPaused() const
-{
-    return paused_;
-}
-
 void HimaxModule::dev_reset()
 {
+    ESP_LOGI(TAG, "Reset device: %u", dev_reset_counter_++);
     gpio_set_level(HIMAX_RESET_PIN, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
     gpio_set_level(HIMAX_RESET_PIN, 1);
 }
 
-uint8_t HimaxModule::dev_get_status()
+int HimaxModule::dev_probe()
 {
-    esp_err_t err;
+    i2c_bus_lock(-1);
+    if (! i2c_master_dev_available()) {
+        i2c_bus_unlock();
+        ESP_LOGW(TAG, "Himax module is not available on I2C bus");
+        return -1;
+    }
+    i2c_bus_unlock();
+    return 0;
+}
+
+int HimaxModule::dev_get_status(uint8_t& status)
+{
+    esp_err_t err    = ESP_OK;
     transaction_t tr = {.cmd = CMD_GET_STATUS, .data_length = 0};
     i2c_bus_lock(-1);
-    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(1000));
-    err = i2c_master_recv((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(1000));
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        ESP_LOGE(TAG, "I2C err=%s", esp_err_to_name(err));
+        return err;
+    }
+    memset(&tr, 0, sizeof(transaction_t));
+    err = i2c_master_recv((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err != ESP_OK) {
+        i2c_bus_unlock();
+        ESP_LOGE(TAG, "I2C err=%s", esp_err_to_name(err));
+        return err;
+    }
     i2c_bus_unlock();
-    ESP_LOGD(TAG, "status=%s", status_to_str(tr.status));
-    return tr.status;
+    status = tr.status;
+    ESP_LOGD(TAG, "status=%s", status_to_str(status));
+    return ESP_OK;
+}
+
+int HimaxModule::dev_get_data_packet(data_packet_t& data)
+{
+    esp_err_t err    = ESP_OK;
+    transaction_t tr = {.cmd = CMD_SEND_DATA, .data_length = 0};
+    i2c_bus_lock(-1);
+    err = i2c_master_send((void*)&tr, sizeof(transaction_t), pdMS_TO_TICKS(50));
+    if (err == ESP_ERR_TIMEOUT) {
+        i2c_bus_unlock();
+        ESP_LOGE(TAG, "I2C (w) err=%s", esp_err_to_name(err));
+        return err;
+    }
+    err = i2c_master_recv((void*)&data, sizeof(data_packet_t), pdMS_TO_TICKS(50));
+    if (err == ESP_ERR_TIMEOUT) {
+        i2c_bus_unlock();
+        ESP_LOGE(TAG, "I2C (r) err=%s", esp_err_to_name(err));
+        return err;
+    }
+    i2c_bus_unlock();
+    return ESP_OK;
 }

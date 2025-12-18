@@ -10,7 +10,7 @@
 #include "esp_spiffs.h"
 
 #include "esp_display_panel.hpp"
-#include "lvgl_v8_port.h"
+#include "lvgl_port_v8.h"
 
 #include "ui.h"
 #include "tts_bridge.h"
@@ -71,8 +71,12 @@ static void tts_worker_task(void* arg)
         //   - опрашивается статус,
         //   - текст кладётся в буфер,
         //   - модуль начинает генерировать PCM, который через AudioPlayer → I2S → динамик.
-        if (s_himax_module.sendText(text, pdMS_TO_TICKS(1000)) != 0) {
+        if (s_himax_module.sendText(text, pdMS_TO_TICKS(10)) != 0) {
             ESP_LOGE(TAG, "HimaxModule::sendText failed");
+            break;
+        }
+        if (s_himax_module.start() != 0) {
+            ESP_LOGE(TAG, "HimaxModule::start failed");
         }
     }
 }
@@ -154,8 +158,7 @@ extern "C" void stop_tts_playback_impl(void)
     // Аналог старого HM_DEV_CMD_STOP:
     //  - говорим HimaxModule сбросить устройство
     //  - останавливаем вывод звука и очищаем буфер
-    s_himax_module.requestAbort();
-    s_audio_player.control(0);
+    s_himax_module.stop();
 
     // Ворона перестаёт говорить визуально
     ui_bird_talk_anim_stop();
@@ -169,8 +172,7 @@ extern "C" void pause_tts_playback_impl(void)
     // Логическая пауза:
     //  - HimaxModule перестаёт читать данные с модуля
     //  - звук глушится, буфер остаётся
-    s_himax_module.requestPause();
-    s_audio_player.mute();
+    s_himax_module.pause();
 }
 
 extern "C" void resume_tts_playback_impl(void)
@@ -180,8 +182,7 @@ extern "C" void resume_tts_playback_impl(void)
     // Продолжаем:
     //  - снова читаем данные с модуля
     //  - возвращаем звук
-    s_himax_module.requestResume();
-    s_audio_player.unmute();
+    s_himax_module.resume();
 }
 
 
@@ -245,7 +246,6 @@ extern "C" void app_main()
 
     lvgl_register_drive_S();
     ui_init();
-    ESP_UTILS_CHECK_FALSE_EXIT(lvgl_port_start(), "LVGL start failed");
 
     // --- Очередь и worker для TTS ---
     s_tts_queue = xQueueCreate(4, sizeof(const char*));

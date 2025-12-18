@@ -20,6 +20,7 @@ static i2s_chan_handle_t s_tx_handle = NULL;
 void i2s_tx_init()
 {
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_TX_PORT_NUMBER, I2S_ROLE_MASTER);
+    chan_cfg.auto_clear = true;
 
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &s_tx_handle, NULL));
 

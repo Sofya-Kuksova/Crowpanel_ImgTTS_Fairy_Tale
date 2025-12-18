@@ -5,17 +5,19 @@
 
 #include "fifo_ringbuf.h"
 
-struct fifo_ringbuf_t {
+struct fifo_ringbuf_t
+{
     void* buffer;
     size_t* item_sizes;
     size_t len;
     size_t item_size;
     size_t discarded_items_;
-    UBaseType_t write_idx;            // Next position to write
-    UBaseType_t read_idx;             // Next position to read
-    UBaseType_t count;                // Next position to read
-    SemaphoreHandle_t mutex;          // Thread safety
-    SemaphoreHandle_t data_available; // Counting semaphore for available packets
+    UBaseType_t write_idx;             // Next position to write
+    UBaseType_t read_idx;              // Next position to read
+    UBaseType_t count;                 // Number of items currently in buffer
+    SemaphoreHandle_t mutex;           // Thread safety
+    SemaphoreHandle_t data_available;  // Counting semaphore for available data
+    SemaphoreHandle_t space_available; // Counting semaphore for free space
 };
 
 // Initialize the ring buffer
@@ -38,9 +40,10 @@ fifo_ringbuf_t* fifo_ringbuf_init(size_t len, size_t item_size)
     rb->len       = len;
     rb->item_size = item_size;
 
-    rb->write_idx = 0;
-    rb->read_idx  = 0;
-    rb->count     = 0;
+    rb->write_idx        = 0;
+    rb->read_idx         = 0;
+    rb->count            = 0;
+    rb->discarded_items_ = 0;
 
     rb->mutex = xSemaphoreCreateMutex();
     if (! rb->mutex) {
@@ -57,6 +60,15 @@ fifo_ringbuf_t* fifo_ringbuf_init(size_t len, size_t item_size)
         free(rb);
         return NULL;
     }
+    rb->space_available = xSemaphoreCreateCounting(rb->len, rb->len);
+    if (! rb->space_available) {
+        vSemaphoreDelete(rb->data_available);
+        vSemaphoreDelete(rb->mutex);
+        free(rb->buffer);
+        free(rb->item_sizes);
+        free(rb);
+        return NULL;
+    }
     return rb;
 }
 
@@ -67,16 +79,25 @@ void fifo_ringbuf_release(fifo_ringbuf_t* rb)
             free(rb->buffer);
         if (rb->item_sizes)
             free(rb->item_sizes);
+        vSemaphoreDelete(rb->space_available);
+        vSemaphoreDelete(rb->data_available);
+        vSemaphoreDelete(rb->mutex);
         free(rb);
     }
 }
 
-// Write data to the buffer (overwrite old data if full)
-size_t fifo_ringbuf_write(fifo_ringbuf_t* rb, const void* data, size_t size)
+// Write data to the buffer (wait for available space)
+size_t fifo_ringbuf_write(fifo_ringbuf_t* rb, const void* data, size_t size, size_t timeout)
 {
     if (size > rb->item_size)
         return 0;
 
+    // Wait until at least one slot is free (blocks if full)
+    if (xSemaphoreTake(rb->space_available, timeout) != pdTRUE) {
+        return 0;
+    }
+
+    // Now safe to proceed — we have reserved a slot
     xSemaphoreTake(rb->mutex, portMAX_DELAY);
 
     void* dst = (int8_t*)rb->buffer + rb->write_idx * rb->item_size;
@@ -84,21 +105,13 @@ size_t fifo_ringbuf_write(fifo_ringbuf_t* rb, const void* data, size_t size)
     rb->item_sizes[rb->write_idx] = size;
 
     rb->write_idx = (rb->write_idx + 1) % rb->len;
+    rb->count++; // Since we waited for space, count always < len before increment
 
-    if (rb->count == rb->len) {
-        rb->discarded_items_++; 
-        // Buffer is full. To overwrite, advance the read pointer.
-        rb->read_idx = (rb->read_idx + 1) % rb->len;
-        // The count remains at rb->len.
-        // Do not give the semaphore because from the consumer’s point of view,
-        // the number of available packets is unchanged.
-    } else {
-        // Buffer was not full. Increase the count.
-        rb->count++;
-        // Signal that new data is available.
-        xSemaphoreGive(rb->data_available);
-    }
+    // Signal that new data is available for consumers
+    xSemaphoreGive(rb->data_available);
+
     xSemaphoreGive(rb->mutex);
+
     return size;
 }
 
@@ -120,39 +133,60 @@ size_t fifo_ringbuf_read(fifo_ringbuf_t* rb, void* data, size_t max_len, size_t 
     rb->read_idx = (rb->read_idx + 1) % rb->len;
     rb->count--;
 
+    xSemaphoreGive(rb->space_available);
     xSemaphoreGive(rb->mutex);
     return copy_len;
 }
 
+static bool _fifo_ringbuf_discard(fifo_ringbuf_t* rb)
+{
+    if (xSemaphoreTake(rb->data_available, 0) != pdTRUE) {
+        return false; // nothing to discard
+    }
+
+    xSemaphoreTake(rb->mutex, portMAX_DELAY);
+    rb->read_idx = (rb->read_idx + 1) % rb->len;
+    rb->count--;
+    xSemaphoreGive(rb->mutex);
+
+    xSemaphoreGive(rb->space_available);
+    return true;
+}
+
 int fifo_ringbuf_reset(fifo_ringbuf_t* rb)
 {
-    if (rb) {
-        xSemaphoreTake(rb->mutex, portMAX_DELAY);
-        while (xSemaphoreTake(rb->data_available, 0) == pdTRUE) {
-        }
-        rb->write_idx = 0;
-        rb->read_idx  = 0;
-        rb->count     = 0;
-        xSemaphoreGive(rb->mutex);
-        return 0;
+    if (! rb)
+        return -1;
+
+    // Step 1: Drain all currently available items.
+    while (_fifo_ringbuf_discard(rb)) {
     }
-    return -1;
+
+    // Step 2: Reset indices under mutex
+    xSemaphoreTake(rb->mutex, portMAX_DELAY);
+    rb->read_idx = rb->write_idx = 0;
+    rb->count                    = 0;
+    xSemaphoreGive(rb->mutex);
+
+    return 0;
 }
 
 int fifo_ringbuf_empty(fifo_ringbuf_t* rb)
 {
-    if (rb) {
-        xSemaphoreTake(rb->mutex, portMAX_DELAY);
-        size_t count = uxSemaphoreGetCount(rb->data_available);
-        xSemaphoreGive(rb->mutex);
-        return count == 0 ? 1 : 0;
-    }
-    return 0;
+    if (! rb)
+        return 1;
+    xSemaphoreTake(rb->mutex, portMAX_DELAY);
+    int empty = (rb->count == 0);
+    xSemaphoreGive(rb->mutex);
+    return empty ? 1 : 0;
 }
 
-size_t fifo_ringbuf_size(fifo_ringbuf_t* rb) {
+size_t fifo_ringbuf_size(fifo_ringbuf_t* rb)
+{
+    if (! rb)
+        return 0;
     xSemaphoreTake(rb->mutex, portMAX_DELAY);
-    size_t count = uxSemaphoreGetCount(rb->data_available);
+    size_t sz = rb->count;
     xSemaphoreGive(rb->mutex);
-    return count;
+    return sz;
 }

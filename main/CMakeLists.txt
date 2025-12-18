@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS
-    "lvgl_v8_port.cpp"
+    "lvgl_port_v8.cpp"
     "main.cpp"
 
     "uart.c"
