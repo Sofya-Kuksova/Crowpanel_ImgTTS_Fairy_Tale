@@ -20,7 +20,7 @@ static const char *TAG = "GIF_LOADING";
 #define UI_BIRD_TALK_GIF_PATH  "/spiffs/assets/crow_talk.gif"
 
 #define GIF_IDLE_SPEED_PCT   120u   
-#define GIF_TALK_SPEED_PCT   300u  
+#define GIF_TALK_SPEED_PCT   400u  
 
 // -------------------------
 // Общий конвертер кадра

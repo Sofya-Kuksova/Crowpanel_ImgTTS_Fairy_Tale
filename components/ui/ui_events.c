@@ -17,6 +17,15 @@
 #include "ui_helpers.h"
 #include "user_name_store.h" 
 
+
+#define UI_FADE_MS            450   // было 350: мягче и заметно “дороже”
+#define UI_CHOICE_MS          80
+#define UI_SCREEN_3_MS        10
+#define UI_SCREEN_FADE_MS     10   // было 50: 50 мс выглядит как “мигание”
+#define UI_QUESTION_HOLD_MS  2400   // было 2200: чуть спокойнее
+#define UI_OUTRO_DELAY_MS     600   // было 500: чуть больше “паузы”
+#define UI_AGAIN_MS           100
+
 static builtin_text_case_t s_current = STORY_START_CASE;
 static lv_timer_t *s_tts_timer           = NULL; // старт TTS через 1s
 static lv_timer_t *s_after_tts_timer     = NULL; // через 1s после TTS → Screen1
@@ -174,7 +183,8 @@ static void start_choices_fade_in(void)
     lv_anim_init(&a);
     lv_anim_set_exec_cb(&a, anim_set_opa_cb);
     lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
-    lv_anim_set_time(&a, 350);
+    lv_anim_set_time(&a, UI_FADE_MS);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
 
     if (ui_ContainerCh) {
         lv_anim_set_var(&a, ui_ContainerCh);
@@ -229,7 +239,7 @@ static void question_fade_in_ready_cb(lv_anim_t *a)
         s_question_hold_timer = NULL;
     }
     /* Вопрос «держится» ~2.2s + анимации ≈ около 3s на экране */
-    s_question_hold_timer = lv_timer_create(question_hold_timer_cb, 2200, NULL);
+    s_question_hold_timer = lv_timer_create(question_hold_timer_cb, UI_QUESTION_HOLD_MS, NULL);
 }
 
 static void start_question_sequence(const story_node_t *node)
@@ -250,7 +260,8 @@ static void start_question_sequence(const story_node_t *node)
     lv_anim_set_var(&a_in, ui_que2);
     lv_anim_set_exec_cb(&a_in, anim_set_opa_cb);
     lv_anim_set_values(&a_in, LV_OPA_TRANSP, LV_OPA_COVER);
-    lv_anim_set_time(&a_in, 350);
+    lv_anim_set_time(&a_in, UI_FADE_MS);
+    lv_anim_set_path_cb(&a_in, lv_anim_path_ease_in_out);
     lv_anim_set_ready_cb(&a_in, question_fade_in_ready_cb);
     lv_anim_start(&a_in);
 }
@@ -276,7 +287,8 @@ static void start_final_end_sequence(void)
     lv_anim_set_var(&a, ui_end2);
     lv_anim_set_exec_cb(&a, anim_set_opa_cb);
     lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
-    lv_anim_set_time(&a, 350);
+    lv_anim_set_time(&a, UI_FADE_MS);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
     lv_anim_start(&a);
 
     if (s_question_hold_timer) {
@@ -292,12 +304,17 @@ static void start_final_end_sequence(void)
     // 1) На Screen1 у ui_bird1 включаем TALK-GIF (тот же, что у ui_bird2)
     ui_bird1_use_talk_gif();
 
+    if (ui_bird1) {
+        lv_obj_set_x(ui_bird1, 352);
+        lv_obj_set_y(ui_bird1, -204);
+    }
+
     // 2) Делаем паузу 0.5 секунды перед финальной фразой
     if (s_outro_tts_timer) {
         lv_timer_del(s_outro_tts_timer);
         s_outro_tts_timer = NULL;
     }
-    s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, 500 /* ms */, NULL);
+    s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, UI_OUTRO_DELAY_MS, NULL);
 }
 
 
@@ -324,6 +341,11 @@ static void outro_tts_timer_cb(lv_timer_t *t)
 static void free_all_images_except(const lv_img_dsc_t* except_s,
                                    const lv_img_dsc_t* except_l)
 {
+    const void *src1 = NULL;
+    const void *src2 = NULL;
+    if (ui_Img1) src1 = lv_img_get_src(ui_Img1);
+    if (ui_Img2) src2 = lv_img_get_src(ui_Img2);
+
     for (int i = 0; i < CASE_TXT_COUNT; ++i) {
         const case_visual_t *v = &kVisuals[i];
 
@@ -333,9 +355,10 @@ static void free_all_images_except(const lv_img_dsc_t* except_s,
             if (!d) continue;
             if (d == except_s || d == except_l) continue;
             if (is_pinned_image(d)) continue;
+            if ((const void*)d == src1 || (const void*)d == src2) continue;
             if (!d->data) continue;
-
-            ESP_LOGD(TAG_UI, "free image buffer: %p", d->data);
+            lv_img_cache_invalidate_src((const void*)d);
+            ESP_LOGD(TAG_UI, "free image buffer: %p (case=%d, which=%s)", d->data, i, (j == 0 ? "S" : "L"));
             heap_caps_free((void*)d->data);
             ((lv_img_dsc_t*)d)->data = NULL;
             ((lv_img_dsc_t*)d)->data_size = 0;
@@ -545,7 +568,7 @@ static void after_tts_timer_cb(lv_timer_t *t)
 
     _ui_screen_change(&ui_Screen1,
                       LV_SCR_LOAD_ANIM_FADE_ON,
-                      10,
+                      UI_SCREEN_FADE_MS,
                       0,
                       &ui_Screen1_screen_init);
 
@@ -554,11 +577,6 @@ static void after_tts_timer_cb(lv_timer_t *t)
     } else {
         start_question_sequence(node);
     }
-
-    /* Здесь TTS уже закончился, мы на Screen1 — можно тихо догрузить SMALL
-     * для текущего кейса, пока пользователь читает вопрос.
-     */
-    ensure_small_image_for_case(s_current);
 
     if (s_after_tts_timer) {
         lv_timer_del(s_after_tts_timer);
@@ -587,8 +605,16 @@ static void ui_notify_tts_finished_async(void *arg)
 
     if (s_outro_mode) {
         s_outro_mode = false;
+
+        ui_bird1_use_idle_gif();
+        if (ui_bird1) {
+            lv_obj_set_x(ui_bird1, 342);
+            lv_obj_set_y(ui_bird1, -204);
+        }
         return;
-    }
+        }
+
+    ensure_small_image_for_case(s_current);
 
     if (s_after_tts_timer) {
         lv_timer_reset(s_after_tts_timer);
@@ -721,6 +747,10 @@ void end_event(lv_event_t * e)
 
     // 2) На Screen1 вернуть idle-анимацию вместо TALK
     ui_bird1_use_idle_gif();
+     if (ui_bird1) {
+        lv_obj_set_x(ui_bird1, 342);
+        lv_obj_set_y(ui_bird1, -204);
+    }
 
     // 3) ВАЖНО: больше НЕ трогаем s_intro_mode.
     //    Вступительная фраза звучит только один раз — при самом первом старте панели.
@@ -745,7 +775,33 @@ void end_event(lv_event_t * e)
     show_case(STORY_START_CASE);
     _ui_screen_change(&ui_Screen2,
                       LV_SCR_LOAD_ANIM_FADE_ON,
-                      10,
+                      UI_AGAIN_MS,
+                      0,
+                      &ui_Screen2_screen_init);
+}
+
+void ui_handle_choice1(lv_event_t * e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+    button_choose_1(e);
+
+    _ui_screen_change(&ui_Screen2,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      UI_CHOICE_MS,
+                      0,
+                      &ui_Screen2_screen_init);
+}
+
+void ui_handle_choice2(lv_event_t * e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+    button_choose_2(e);
+
+    _ui_screen_change(&ui_Screen2,
+                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      UI_CHOICE_MS,
                       0,
                       &ui_Screen2_screen_init);
 }
@@ -780,7 +836,7 @@ void ui_handle_settings_from_screen1(lv_event_t * e)
     }
 
     _ui_screen_change(&ui_Screen3,
-                      LV_SCR_LOAD_ANIM_FADE_ON,
+                      UI_SCREEN_3_MS,
                       100,
                       0,
                       &ui_Screen3_screen_init);
@@ -813,7 +869,7 @@ void ui_handle_settings_from_screen2(lv_event_t * e)
 
     _ui_screen_change(&ui_Screen3,
                       LV_SCR_LOAD_ANIM_FADE_ON,
-                      100,
+                      UI_SCREEN_3_MS,
                       0,
                       &ui_Screen3_screen_init);
 }
@@ -832,7 +888,7 @@ void ui_handle_settings_back_from_screen3(lv_event_t * e)
     /* Возврат на Screen1 */
     _ui_screen_change(&ui_Screen1,
                       LV_SCR_LOAD_ANIM_FADE_ON,
-                      100,
+                      UI_SCREEN_3_MS,
                       0,
                       &ui_Screen1_screen_init);
 
@@ -850,7 +906,7 @@ void ui_handle_settings_back_from_screen3(lv_event_t * e)
      */
     if (s_outro_mode && s_outro_tts_timer == NULL) {
         /* ПАУЗА перед финальной репликой (0.5s) — как в start_final_end_sequence() */
-        s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, 500, NULL);
+        s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, UI_OUTRO_DELAY_MS, NULL);
     }
 } else if (s_last_active_screen == 2) {
     /* Возврат на Screen2.
@@ -860,7 +916,7 @@ void ui_handle_settings_back_from_screen3(lv_event_t * e)
      */
     _ui_screen_change(&ui_Screen2,
                       LV_SCR_LOAD_ANIM_FADE_ON,
-                      100,
+                      UI_SCREEN_3_MS,
                       0,
                       &ui_Screen2_screen_init);
 
@@ -875,7 +931,7 @@ void ui_handle_settings_back_from_screen3(lv_event_t * e)
         /* fallback, если что-то пошло не так */
         _ui_screen_change(&ui_Screen2,
                           LV_SCR_LOAD_ANIM_FADE_ON,
-                          100,
+                          UI_SCREEN_3_MS,
                           0,
                           &ui_Screen2_screen_init);
     }

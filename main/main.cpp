@@ -210,6 +210,19 @@ bool i2c_bus_unlock(void)
 
 extern "C" void app_main()
 {
+    // Глобально: показывать только WARN и выше
+    esp_log_level_set("*", ESP_LOG_WARN);
+
+    // А нужные теги оставить на INFO
+    esp_log_level_set("ui_events", ESP_LOG_INFO);
+    esp_log_level_set("HimaxModule", ESP_LOG_INFO);
+
+    // Шумные — прижать
+    esp_log_level_set("uart", ESP_LOG_WARN);
+    esp_log_level_set("uart_manager", ESP_LOG_WARN);
+    esp_log_level_set("UART_JSON_MODULE", ESP_LOG_WARN);
+    esp_log_level_set("UIIMG", ESP_LOG_WARN);
+    
     // --- SPIFFS как было ---
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/spiffs",

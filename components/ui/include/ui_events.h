@@ -38,6 +38,9 @@ void ui_handle_settings_from_screen1(lv_event_t * e);
 void ui_handle_settings_from_screen2(lv_event_t * e);
 void ui_handle_settings_back_from_screen3(lv_event_t * e);
 
+void ui_handle_choice1(lv_event_t * e);
+void ui_handle_choice2(lv_event_t * e);
+
 void reload_app(lv_event_t * e);
 
 #ifdef __cplusplus

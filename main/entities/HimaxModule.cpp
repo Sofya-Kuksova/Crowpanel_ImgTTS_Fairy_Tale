@@ -23,6 +23,11 @@
 extern bool i2c_bus_lock(int timeout_ms);
 extern bool i2c_bus_unlock(void);
 
+// UI notifications (безопасно из non-LVGL таска):
+extern "C" void ui_notify_tts_finished(void);
+extern "C" void ui_bird_talk_anim_stop(void);
+
+
 void HimaxModule::task(void* arg)
 {
     HimaxModule* himax_module = static_cast<HimaxModule*>(arg);
@@ -97,12 +102,28 @@ void HimaxModule::task(void* arg)
                 }
             }
             if (packet_counter > 0) {
-                ESP_LOGI(TAG, "Recieved %u packets", packet_counter);
+            ESP_LOGI(TAG, "Recieved %u packets", packet_counter);
             }
             if (corrupted_packets_counter > 0) {
                 ESP_LOGW(TAG, "Recieved %u corrupted packets", corrupted_packets_counter);
             }
+
+            /* >>> ВСТАВИТЬ ВОТ ЭТО <<< */
+            const EventBits_t bits_now = xEventGroupGetBits(himax_module->status_);
+            const bool paused_now      = (bits_now & STATUS_HM_PAUSED) != 0;
+
+            // “Завершено” = мы реально получили аудио (packet_counter != 0)
+            // и вышли по ST_IDLE (stop == true), и это НЕ пауза.
+            const bool finished_now = (!paused_now) && (packet_counter != 0) && stop;
+
+            if (finished_now) {
+                ui_bird_talk_anim_stop();
+                ui_notify_tts_finished();
+            }
+            /* >>> КОНЕЦ ВСТАВКИ <<< */
+
             xEventGroupClearBits(himax_module->status_, STATUS_HM_BUSY);
+
         }
     }
 }
@@ -144,8 +165,9 @@ int HimaxModule::sendText(const char* str, size_t xTicksToWait)
     }
 
     esp_err_t err = ESP_OK;
-    size_t n      = strlen(str);
-    ESP_LOGI(TAG, "send str=\"%s\", len=%u", str, n);
+    size_t n = strlen(str);
+    ESP_LOGI(TAG, "send text: len=%u", (unsigned)n);
+
 
     transaction_t tr = {.cmd = CMD_RECV_MSG, .data_length = static_cast<uint16_t>(n)};
     i2c_bus_lock(-1);
