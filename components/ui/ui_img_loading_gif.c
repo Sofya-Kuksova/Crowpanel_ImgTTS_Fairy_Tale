@@ -19,8 +19,8 @@ static const char *TAG = "GIF_LOADING";
 #define UI_BIRD_NORM_GIF_PATH  "/spiffs/assets/crow_idle.gif"
 #define UI_BIRD_TALK_GIF_PATH  "/spiffs/assets/crow_talk.gif"
 
-#define GIF_IDLE_SPEED_PCT   120u   
-#define GIF_TALK_SPEED_PCT   400u  
+#define GIF_IDLE_SPEED_PCT   100u   
+#define GIF_TALK_SPEED_PCT   500u  
 
 // -------------------------
 // Общий конвертер кадра
@@ -387,9 +387,17 @@ static void ui_bird_talk_gif_start(void)
 
 void ui_bird_talk_anim_start(void)
 {
-    // Просто ставим флаг "говорим"
     s_talk_anim_active = true;
+
+    // Сразу просим LVGL выполнить тик таймера и перерисоваться,
+    // чтобы "движение" началось без ожидания периода кадра.
+    if (gif_timer_talk) {
+        lv_timer_ready(gif_timer_talk);
+    }
+    if (ui_bird2) lv_obj_invalidate(ui_bird2);
+    if (ui_bird1) lv_obj_invalidate(ui_bird1);
 }
+
 
 void ui_bird_talk_anim_stop(void)
 {

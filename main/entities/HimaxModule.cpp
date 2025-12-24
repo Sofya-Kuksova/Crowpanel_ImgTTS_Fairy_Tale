@@ -78,7 +78,7 @@ void HimaxModule::task(void* arg)
                         }
                         bursted_packets++;
                         packet_counter++;
-                        himax_module->player_->write(data.data, data.data_length, portMAX_DELAY);
+                        himax_module->player_->write(data.data, data.data_length, portMAX_DELAY); // if player is off and it's buffer is full, will block indefinitely
                         ESP_LOG_BUFFER_HEXDUMP(TAG, &data, sizeof(data_packet_t), ESP_LOG_VERBOSE);
                         vTaskDelayUntil(&xLastWakeTime, xDelay);
                     }
@@ -102,7 +102,7 @@ void HimaxModule::task(void* arg)
                 }
             }
             if (packet_counter > 0) {
-            ESP_LOGI(TAG, "Recieved %u packets", packet_counter);
+                ESP_LOGI(TAG, "Recieved %u packets", packet_counter);
             }
             if (corrupted_packets_counter > 0) {
                 ESP_LOGW(TAG, "Recieved %u corrupted packets", corrupted_packets_counter);

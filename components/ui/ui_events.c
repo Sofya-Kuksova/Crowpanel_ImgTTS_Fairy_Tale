@@ -23,7 +23,7 @@
 #define UI_SCREEN_3_MS        10
 #define UI_SCREEN_FADE_MS     10   // было 50: 50 мс выглядит как “мигание”
 #define UI_QUESTION_HOLD_MS  2400   // было 2200: чуть спокойнее
-#define UI_OUTRO_DELAY_MS     600   // было 500: чуть больше “паузы”
+#define UI_OUTRO_DELAY_MS     400   // было 500: чуть больше “паузы”
 #define UI_AGAIN_MS           100
 
 static builtin_text_case_t s_current = STORY_START_CASE;
@@ -77,6 +77,25 @@ static void anim_set_opa_cb(void *var, int32_t v)
     lv_obj_set_style_opa(obj, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
+static void ui_notify_tts_started_async(void *arg)
+{
+    LV_UNUSED(arg);
+
+    if (s_settings_open) return;
+
+    // Если сейчас финальная реплика — на Screen1 переключаем GIF на TALK
+    if (s_outro_mode) {
+        ui_bird1_use_talk_gif();
+    }
+
+    // Запускаем прокрутку кадров TALK (для ui_bird2 и/или ui_bird1, кто сейчас сидит на talk-gif)
+    ui_bird_talk_anim_start();
+}
+
+void ui_notify_tts_started(void)
+{
+    lv_async_call(ui_notify_tts_started_async, NULL);
+}
 
 /* "Пауза" вопроса и вариантов для Screen1.
  * В LVGL 8 нет lv_anim_pause(), поэтому делаем так:
@@ -303,18 +322,19 @@ static void start_final_end_sequence(void)
 
     // 1) На Screen1 у ui_bird1 включаем TALK-GIF (тот же, что у ui_bird2)
     ui_bird1_use_talk_gif();
+    ui_bird_talk_anim_stop();
 
     if (ui_bird1) {
         lv_obj_set_x(ui_bird1, 352);
         lv_obj_set_y(ui_bird1, -204);
     }
-
-    // 2) Делаем паузу 0.5 секунды перед финальной фразой
+    
     if (s_outro_tts_timer) {
-        lv_timer_del(s_outro_tts_timer);
-        s_outro_tts_timer = NULL;
+    lv_timer_del(s_outro_tts_timer);
+    s_outro_tts_timer = NULL;
     }
     s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, UI_OUTRO_DELAY_MS, NULL);
+
 }
 
 
@@ -332,6 +352,7 @@ static void outro_tts_timer_cb(lv_timer_t *t)
         s_outro_tts_timer = NULL;
     }
 }
+
 
 
 
@@ -589,6 +610,8 @@ static void ui_notify_tts_finished_async(void *arg)
 {
     LV_UNUSED(arg);
 
+    ui_bird_talk_anim_stop(); 
+
     /* NEW: пока мы на экране настроек (Screen3), ЛЮБОЕ завершение TTS
      * игнорируем: не двигаем историю, не сбрасываем флаги, не создаём таймеры.
      * Это касается и кейсов на Screen2, и финальной реплики на Screen1.
@@ -606,6 +629,7 @@ static void ui_notify_tts_finished_async(void *arg)
     if (s_outro_mode) {
         s_outro_mode = false;
 
+        ui_bird_talk_anim_stop();
         ui_bird1_use_idle_gif();
         if (ui_bird1) {
             lv_obj_set_x(ui_bird1, 342);
@@ -613,7 +637,7 @@ static void ui_notify_tts_finished_async(void *arg)
         }
         return;
         }
-
+    ui_bird_talk_anim_stop();
     ensure_small_image_for_case(s_current);
 
     if (s_after_tts_timer) {
@@ -622,8 +646,6 @@ static void ui_notify_tts_finished_async(void *arg)
         s_after_tts_timer = lv_timer_create(after_tts_timer_cb, 1000, NULL);
     }
 }
-
-
 
 void ui_notify_tts_finished(void)
 {
@@ -655,13 +677,8 @@ static void tts_timer_cb(lv_timer_t* t)
     (void)t;
 
     const char *text = NULL;
-    if (s_intro_mode) {
-        // Первый запуск: читаем вступление перед началом сказки
-        text = builtin_get_intro_text();
-    } else {
-        // Все последующие запуски: основной текст текущего кейса
-        text = get_builtin_text();
-    }
+    if (s_intro_mode) text = builtin_get_intro_text();
+    else             text = get_builtin_text();
 
     if (text) {
         start_tts_playback_c(text);
@@ -690,6 +707,7 @@ static void schedule_tts_after_delay(void)
 
 static void show_case(builtin_text_case_t c)
 {
+    ui_bird_talk_anim_stop();
     s_current = c;
     builtin_text_set(c);     // текст для TTS
 
@@ -711,6 +729,9 @@ static void show_case(builtin_text_case_t c)
     if (ui_arr1)        lv_obj_add_flag(ui_arr1, LV_OBJ_FLAG_HIDDEN);
     if (ui_arr2)        lv_obj_add_flag(ui_arr2, LV_OBJ_FLAG_HIDDEN);
     if (ui_end2)        lv_obj_add_flag(ui_end2, LV_OBJ_FLAG_HIDDEN);
+
+    // пока ждём 1s перед TTS — точно НЕ крутим TALK
+    ui_bird_talk_anim_stop();
 
     /* Через 1 секунду запустится tts_timer_cb() -> start_tts_playback_c() */
     schedule_tts_after_delay();
@@ -836,10 +857,11 @@ void ui_handle_settings_from_screen1(lv_event_t * e)
     }
 
     _ui_screen_change(&ui_Screen3,
-                      UI_SCREEN_3_MS,
-                      100,
-                      0,
-                      &ui_Screen3_screen_init);
+                  LV_SCR_LOAD_ANIM_FADE_ON,
+                  UI_SCREEN_3_MS,
+                  0,
+                  &ui_Screen3_screen_init);
+
 }
 
 

@@ -13,11 +13,16 @@
 #include "AudioPlayer.h"
 #include "i2s/i2s_tx.h"
 
+#include "ui_events.h"
+
 #define SPK_MUTE_PIN GPIO_NUM_3
 #define SPK_SHUT_PIN GPIO_NUM_4
 
 #define STATUS_ON      BIT0
 #define STATUS_PLAYING BIT1
+#define STATUS_STARTED BIT2
+
+
 
 extern bool i2c_bus_lock(int timeout_ms);
 extern bool i2c_bus_unlock(void);
@@ -30,19 +35,37 @@ void AudioPlayer::control_task(void* arg)
             if (fifo_ringbuf_size(player->audio_buffer_) > kPlaybackStartThre) {
                 ESP_LOGD(TAG, "Start playback");
                 player->enable();
+                xEventGroupClearBits(player->status_, STATUS_STARTED); // новый playback-session
                 xEventGroupSetBits(player->status_, STATUS_PLAYING);
+
             }
         } else {
             while (! fifo_ringbuf_empty(player->audio_buffer_)) {
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
             xEventGroupClearBits(player->status_, STATUS_PLAYING);
+            xEventGroupClearBits(player->status_, STATUS_STARTED);
             ESP_LOGD(TAG, "Stop playback");
             player->disable();
+
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
+
+static inline bool has_audio_energy_i16(const uint8_t* buf, size_t bytes)
+{
+    const int16_t* s = (const int16_t*)buf;
+    size_t n = bytes / 2;
+    const int16_t thr = 250; // порог "не тишина"
+
+    for (size_t i = 0; i < n; i++) {
+        int16_t v = s[i];
+        if (v > thr || v < -thr) return true;
+    }
+    return false;
+}
+
 
 void AudioPlayer::play_task(void* arg)
 {
@@ -54,9 +77,15 @@ void AudioPlayer::play_task(void* arg)
             STATUS_PLAYING) {
             read = fifo_ringbuf_read(player->audio_buffer_, buffer, player->frame_size_, pdMS_TO_TICKS(100));
             if (read) {
-                ESP_LOGV(TAG, "RB, pop, %u", fifo_ringbuf_size(player->audio_buffer_));
+                EventBits_t bits = xEventGroupGetBits(player->status_);
+                if (!(bits & STATUS_STARTED) && has_audio_energy_i16(buffer, read)) {
+                    xEventGroupSetBits(player->status_, STATUS_STARTED);
+                    ui_notify_tts_started();   // запускаем UI чуть раньше вывода в I2S
+                }
+
                 i2s_tx_write(buffer, read, portMAX_DELAY);
             }
+
         }
     }
     free(buffer);
@@ -111,6 +140,7 @@ bool AudioPlayer::enable()
     i2c_bus_lock(-1);
     io_expander_->digitalWrite(SPK_MUTE_PIN, LOW);
     i2c_bus_unlock();
+    xEventGroupSetBits(status_, STATUS_ON);
     return true;
 }
 
@@ -122,6 +152,7 @@ bool AudioPlayer::disable()
     i2c_bus_lock(-1);
     io_expander_->digitalWrite(SPK_MUTE_PIN, HIGH);
     i2c_bus_unlock();
+    xEventGroupClearBits(status_, STATUS_ON);
     return true;
 }
 

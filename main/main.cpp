@@ -63,21 +63,36 @@ static void tts_worker_task(void* arg)
 
         ESP_LOGD(TAG, "TTS worker: speak text @%p", text);
 
-        // Сообщаем UI, что ворона начала говорить → запустить GIF_TALK
-        ui_bird_talk_anim_start();
-
         // Теперь текст уходит в Himax add-on по I²C.
         // Внутри HimaxModule:
         //   - опрашивается статус,
         //   - текст кладётся в буфер,
         //   - модуль начинает генерировать PCM, который через AudioPlayer → I2S → динамик.
-        if (s_himax_module.sendText(text, pdMS_TO_TICKS(10)) != 0) {
+                // 1) sendText: не 10ms, и НЕ выходим из таска при ошибке
+        if (s_himax_module.sendText(text, pdMS_TO_TICKS(1000)) != 0) {
             ESP_LOGE(TAG, "HimaxModule::sendText failed");
-            break;
+
+            // восстановление состояния
+            s_himax_module.stop();
+            ui_bird_talk_anim_stop();
+
+            // не ломаем сценарий навигации: считаем, что "проигрывание завершилось"
+            ui_notify_tts_finished();
+
+            continue; // ВАЖНО: не break
         }
+
+        // 2) start: если не стартануло — тоже восстановиться и продолжить цикл
         if (s_himax_module.start() != 0) {
             ESP_LOGE(TAG, "HimaxModule::start failed");
+
+            s_himax_module.stop();
+            ui_bird_talk_anim_stop();
+            ui_notify_tts_finished();
+
+            continue; // ВАЖНО: не return и не break
         }
+
     }
 }
 
