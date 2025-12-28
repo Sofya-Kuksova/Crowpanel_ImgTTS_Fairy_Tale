@@ -36,39 +36,49 @@ void AudioPlayer::mark_stream_ended()
 void AudioPlayer::control_task(void* arg)
 {
     AudioPlayer* player = static_cast<AudioPlayer*>(arg);
+
     for (;;) {
-        if (! player->isOn()) {
+        const EventBits_t bits_now = xEventGroupGetBits(player->status_);
+        const bool playing      = (bits_now & STATUS_PLAYING) != 0;
+        const bool stream_ended = (bits_now & STATUS_STREAM_END) != 0;
+
+        // START: накопили буфер -> стартуем (и включаем усилитель ОДИН раз).
+        if (!playing) {
             if (fifo_ringbuf_size(player->audio_buffer_) > kPlaybackStartThre) {
                 ESP_LOGD(TAG, "Start playback");
-                player->enable();
-                xEventGroupClearBits(player->status_, STATUS_STARTED | STATUS_STREAM_END); // новый playback-session
+                if (!player->isOn()) {
+                    player->enable();
+                }
+
+                // Новый playback-session
+                xEventGroupClearBits(player->status_, STATUS_STARTED | STATUS_STREAM_END);
                 xEventGroupSetBits(player->status_, STATUS_PLAYING);
-
-            }
-        } else {
-            while (! fifo_ringbuf_empty(player->audio_buffer_)) {
-                vTaskDelay(pdMS_TO_TICKS(100));
             }
 
-            const EventBits_t bits_now = xEventGroupGetBits(player->status_);
-            const bool stream_ended    = (bits_now & STATUS_STREAM_END) != 0;
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+
+        // PLAYING: НЕ останавливаемся просто потому что буфер временно пуст.
+        // Останавливаемся ТОЛЬКО когда Himax сказал "конец потока"
+        // и буфер действительно полностью выдренен.
+        if (stream_ended && fifo_ringbuf_empty(player->audio_buffer_)) {
+            ESP_LOGD(TAG, "Stop playback (stream end)");
 
             xEventGroupClearBits(player->status_, STATUS_PLAYING);
             xEventGroupClearBits(player->status_, STATUS_STARTED);
             xEventGroupClearBits(player->status_, STATUS_STREAM_END);
 
-            ESP_LOGD(TAG, "Stop playback");
-            player->disable();
-
-            if (stream_ended) {
-                ui_notify_tts_finished();
-            }
-
-
+            // ВАЖНО: НЕ вызываем disable() отсюда.
+            // disable() трогает I2C-expander и может "клинить" общий I2C bus,
+            // после чего Himax больше не может взять i2c_bus_lock().
+            ui_notify_tts_finished();
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
+
 
 static inline bool has_audio_energy_i16(const uint8_t* buf, size_t bytes)
 {

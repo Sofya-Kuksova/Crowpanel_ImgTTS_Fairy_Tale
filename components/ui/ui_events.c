@@ -43,6 +43,9 @@ static bool s_outro_mode       = false; // сейчас проигрываем �
 static int  s_last_active_screen = 0;   // 0 – неизвестно, 1 – Screen1, 2 – Screen2
 static bool s_settings_open      = false;
 
+/* Подавить "late finished" после принудительного stop (настройки) до следующего старта TTS */
+static bool s_ignore_tts_finished_until_next_start = false;
+
 static bool s_pending_idle_after_talk_stop = false;
 
 static lv_timer_t *s_talk_start_timer    = NULL;
@@ -688,6 +691,15 @@ static void ui_notify_tts_finished_async(void *arg)
 
     s_pending_idle_after_talk_stop = false;
 
+    /* Если TTS был принудительно остановлен (например, при входе в настройки),
+     * может прилететь отложенный ui_notify_tts_finished().
+     * Не даём ему менять экраны/режимы до следующего старта TTS.
+     */
+    if (s_ignore_tts_finished_until_next_start) {
+        schedule_talk_stop();
+        return;
+    }
+
     if (s_settings_open) {
         schedule_talk_stop();
         return;
@@ -752,8 +764,14 @@ static void tts_timer_cb(lv_timer_t* t)
     else             text = get_builtin_text();
 
     if (text) {
+        /* Новый запуск TTS: снимаем подавление "late finished" от предыдущего stop() */
+        s_ignore_tts_finished_until_next_start = false;
         start_tts_playback_c(text);
+    } else {
+        /* На всякий случай тоже снимаем подавление, чтобы не повиснуть */
+        s_ignore_tts_finished_until_next_start = false;
     }
+
 
     if (s_tts_timer) {
         lv_timer_del(s_tts_timer);
@@ -965,10 +983,14 @@ void ui_handle_settings_from_screen2(lv_event_t * e)
     s_last_active_screen = 2;
     s_settings_open      = true;
 
+    /* См. ниже: подавляем "late finished" после stop() до следующего старта TTS */
+    s_ignore_tts_finished_until_next_start = true;
+
     /* Screen2: ПОЛНОСТЬЮ останавливаем TTS и связанные таймеры,
      * чтобы при возврате проиграть текущий кейс заново.
      */
     tts_stop_playback();   // вместо tts_pause_playback()
+
 
     if (s_tts_timer) {
         lv_timer_del(s_tts_timer);
