@@ -21,11 +21,17 @@
 #define STATUS_ON      BIT0
 #define STATUS_PLAYING BIT1
 #define STATUS_STARTED BIT2
+#define STATUS_STREAM_END BIT3
 
 
 
 extern bool i2c_bus_lock(int timeout_ms);
 extern bool i2c_bus_unlock(void);
+
+void AudioPlayer::mark_stream_ended()
+{
+    xEventGroupSetBits(status_, STATUS_STREAM_END);
+}
 
 void AudioPlayer::control_task(void* arg)
 {
@@ -35,7 +41,7 @@ void AudioPlayer::control_task(void* arg)
             if (fifo_ringbuf_size(player->audio_buffer_) > kPlaybackStartThre) {
                 ESP_LOGD(TAG, "Start playback");
                 player->enable();
-                xEventGroupClearBits(player->status_, STATUS_STARTED); // новый playback-session
+                xEventGroupClearBits(player->status_, STATUS_STARTED | STATUS_STREAM_END); // новый playback-session
                 xEventGroupSetBits(player->status_, STATUS_PLAYING);
 
             }
@@ -43,10 +49,21 @@ void AudioPlayer::control_task(void* arg)
             while (! fifo_ringbuf_empty(player->audio_buffer_)) {
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
+
+            const EventBits_t bits_now = xEventGroupGetBits(player->status_);
+            const bool stream_ended    = (bits_now & STATUS_STREAM_END) != 0;
+
             xEventGroupClearBits(player->status_, STATUS_PLAYING);
             xEventGroupClearBits(player->status_, STATUS_STARTED);
+            xEventGroupClearBits(player->status_, STATUS_STREAM_END);
+
             ESP_LOGD(TAG, "Stop playback");
             player->disable();
+
+            if (stream_ended) {
+                ui_notify_tts_finished();
+            }
+
 
         }
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -158,7 +175,7 @@ bool AudioPlayer::disable()
 
 bool AudioPlayer::pause()
 {
-    if (xEventGroupGetBits(status_) & STATUS_PLAYING) {
+    if (! (xEventGroupGetBits(status_) & STATUS_PLAYING)) {
         return false;
     }
     xEventGroupClearBits(status_, STATUS_PLAYING);
@@ -167,12 +184,13 @@ bool AudioPlayer::pause()
 
 bool AudioPlayer::resume()
 {
-    if (! (xEventGroupGetBits(status_) & STATUS_PLAYING)) {
+    if (xEventGroupGetBits(status_) & STATUS_PLAYING) {
         return false;
     }
     xEventGroupSetBits(status_, STATUS_PLAYING);
     return true;
 }
+
 
 bool AudioPlayer::stop()
 {

@@ -26,6 +26,9 @@
 #define UI_OUTRO_DELAY_MS     400   // было 500: чуть больше “паузы”
 #define UI_AGAIN_MS           100
 
+#define UI_TALK_START_DELAY_MS  1   // задержка перед запуском TALK после старта аудио
+#define UI_TALK_STOP_DELAY_MS   1   // задержка перед остановкой TALK после окончания аудио
+
 static builtin_text_case_t s_current = STORY_START_CASE;
 static lv_timer_t *s_tts_timer           = NULL; // старт TTS через 1s
 static lv_timer_t *s_after_tts_timer     = NULL; // через 1s после TTS → Screen1
@@ -39,6 +42,15 @@ static bool s_outro_mode       = false; // сейчас проигрываем �
 /* Новое: состояние экрана настроек */
 static int  s_last_active_screen = 0;   // 0 – неизвестно, 1 – Screen1, 2 – Screen2
 static bool s_settings_open      = false;
+
+static bool s_pending_idle_after_talk_stop = false;
+
+static lv_timer_t *s_talk_start_timer    = NULL;
+static lv_timer_t *s_talk_stop_timer     = NULL;
+
+static lv_timer_t *s_resume_screen2_timer = NULL;
+static builtin_text_case_t s_resume_case  = STORY_START_CASE;
+static void resume_screen2_timer_cb(lv_timer_t *t);
 
 static const char* TAG_UI = "ui_events";
 
@@ -69,6 +81,12 @@ static void start_question_sequence(const story_node_t *node);
 
 static void outro_tts_timer_cb(lv_timer_t *t);
 
+/* TALK-GIF delayed start/stop */
+static void talk_start_timer_cb(lv_timer_t *t);
+static void talk_stop_timer_cb(lv_timer_t *t);
+static void schedule_talk_start(void);
+static void schedule_talk_stop(void);
+
 
 static void anim_set_opa_cb(void *var, int32_t v)
 {
@@ -77,20 +95,78 @@ static void anim_set_opa_cb(void *var, int32_t v)
     lv_obj_set_style_opa(obj, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
-static void ui_notify_tts_started_async(void *arg)
+void ui_notify_tts_started_async(void *arg)
 {
     LV_UNUSED(arg);
 
     if (s_settings_open) return;
 
-    // Если сейчас финальная реплика — на Screen1 переключаем GIF на TALK
     if (s_outro_mode) {
         ui_bird1_use_talk_gif();
     }
 
-    // Запускаем прокрутку кадров TALK (для ui_bird2 и/или ui_bird1, кто сейчас сидит на talk-gif)
+    schedule_talk_start();
+}
+
+
+static void talk_start_timer_cb(lv_timer_t *t)
+{
+    lv_timer_del(t);
+    s_talk_start_timer = NULL;
+
+    if (s_settings_open) return;
+
     ui_bird_talk_anim_start();
 }
+
+static void talk_stop_timer_cb(lv_timer_t *t)
+{
+    lv_timer_del(t);
+    s_talk_stop_timer = NULL;
+
+    // после окончания TTS: для case остаёмся на первом кадре TALK
+    ui_bird_talk_anim_stop();
+
+    // для outro: после stop-delay переводим ui_bird1 в idle-gif
+    if (s_pending_idle_after_talk_stop) {
+        s_pending_idle_after_talk_stop = false;
+        ui_bird1_use_idle_gif();
+        if (ui_bird1) {
+            lv_obj_set_x(ui_bird1, 342);
+            lv_obj_set_y(ui_bird1, -204);
+        }
+    }
+}
+
+
+static void schedule_talk_start(void)
+{
+    if (s_talk_stop_timer) {
+        lv_timer_del(s_talk_stop_timer);
+        s_talk_stop_timer = NULL;
+    }
+
+    if (s_talk_start_timer) {
+        lv_timer_reset(s_talk_start_timer);
+    } else {
+        s_talk_start_timer = lv_timer_create(talk_start_timer_cb, UI_TALK_START_DELAY_MS, NULL);
+    }
+}
+
+static void schedule_talk_stop(void)
+{
+    if (s_talk_start_timer) {
+        lv_timer_del(s_talk_start_timer);
+        s_talk_start_timer = NULL;
+    }
+
+    if (s_talk_stop_timer) {
+        lv_timer_reset(s_talk_stop_timer);
+    } else {
+        s_talk_stop_timer = lv_timer_create(talk_stop_timer_cb, UI_TALK_STOP_DELAY_MS, NULL);
+    }
+}
+
 
 void ui_notify_tts_started(void)
 {
@@ -610,17 +686,15 @@ static void ui_notify_tts_finished_async(void *arg)
 {
     LV_UNUSED(arg);
 
-    ui_bird_talk_anim_stop(); 
+    s_pending_idle_after_talk_stop = false;
 
-    /* NEW: пока мы на экране настроек (Screen3), ЛЮБОЕ завершение TTS
-     * игнорируем: не двигаем историю, не сбрасываем флаги, не создаём таймеры.
-     * Это касается и кейсов на Screen2, и финальной реплики на Screen1.
-     */
     if (s_settings_open) {
+        schedule_talk_stop();
         return;
     }
 
     if (s_intro_mode) {
+        schedule_talk_stop();
         s_intro_mode = false;
         show_case(STORY_START_CASE);
         return;
@@ -628,16 +702,13 @@ static void ui_notify_tts_finished_async(void *arg)
 
     if (s_outro_mode) {
         s_outro_mode = false;
-
-        ui_bird_talk_anim_stop();
-        ui_bird1_use_idle_gif();
-        if (ui_bird1) {
-            lv_obj_set_x(ui_bird1, 342);
-            lv_obj_set_y(ui_bird1, -204);
-        }
+        s_pending_idle_after_talk_stop = true;  // <-- важное отличие
+        schedule_talk_stop();
         return;
-        }
-    ui_bird_talk_anim_stop();
+    }
+
+    schedule_talk_stop(); // <-- case: после stop-delay остаёмся на первом кадре TALK
+
     ensure_small_image_for_case(s_current);
 
     if (s_after_tts_timer) {
@@ -733,6 +804,8 @@ static void show_case(builtin_text_case_t c)
     // пока ждём 1s перед TTS — точно НЕ крутим TALK
     ui_bird_talk_anim_stop();
 
+    s_pending_idle_after_talk_stop = false;
+
     /* Через 1 секунду запустится tts_timer_cb() -> start_tts_playback_c() */
     schedule_tts_after_delay();
 }
@@ -827,7 +900,24 @@ void ui_handle_choice2(lv_event_t * e)
                       &ui_Screen2_screen_init);
 }
 
-// ui_events.c — СТАЛО (новые функции)
+static void resume_screen2_timer_cb(lv_timer_t *t)
+{
+    LV_UNUSED(t);
+
+    if (s_resume_screen2_timer) {
+        lv_timer_del(s_resume_screen2_timer);
+        s_resume_screen2_timer = NULL;
+    }
+
+    /* После выхода из настроек мы всегда хотим “переиграть заново”
+     * intro/case (в зависимости от s_intro_mode).
+     * show_case() выставит large image + сбросит talk + поставит TTS timer.
+     */
+    show_case(s_resume_case);
+
+    /* Мы уже на Screen2, show_case сам НЕ переключает экран — это ок. */
+}
+
 
 void ui_handle_settings_from_screen1(lv_event_t * e)
 {
@@ -931,23 +1021,30 @@ void ui_handle_settings_back_from_screen3(lv_event_t * e)
         s_outro_tts_timer = lv_timer_create(outro_tts_timer_cb, UI_OUTRO_DELAY_MS, NULL);
     }
 } else if (s_last_active_screen == 2) {
-    /* Возврат на Screen2.
-     * TTS и таймеры мы до этого полностью остановили/удалили,
-     * поэтому здесь просто заново запускаем воспроизведение
-     * для текущего контекста (intro или case s_current).
-     */
     _ui_screen_change(&ui_Screen2,
                       LV_SCR_LOAD_ANIM_FADE_ON,
                       UI_SCREEN_3_MS,
                       0,
                       &ui_Screen2_screen_init);
 
-    /* schedule_tts_after_delay создаст новый s_tts_timer,
-     * а в tts_timer_cb текст выберется как:
-     *   - builtin_get_intro_text(), если s_intro_mode == true
-     *   - get_builtin_text() для текущего s_current, если нет.
+    /* ВАЖНО:
+     * - если был прерван INTRO: s_intro_mode всё ещё true → tts_timer_cb возьмёт intro текст
+     * - если был прерван CASE:  s_intro_mode false → tts_timer_cb возьмёт текст текущего кейса
+     *
+     * Но чтобы восстановить “как раньше” (полный перезапуск кейса),
+     * мы обязаны снова вызвать show_case(), а не только schedule_tts_after_delay().
+     *
+     * Делать это нужно с небольшой задержкой, чтобы Screen2 init успел создать ui_Img2.
      */
-    schedule_tts_after_delay();
+    s_resume_case = (s_intro_mode ? STORY_START_CASE : s_current);
+
+    if (s_resume_screen2_timer) {
+        lv_timer_del(s_resume_screen2_timer);
+        s_resume_screen2_timer = NULL;
+    }
+    s_resume_screen2_timer = lv_timer_create(resume_screen2_timer_cb,
+                                             UI_SCREEN_3_MS + 5,
+                                             NULL);
     }
     else {
         /* fallback, если что-то пошло не так */

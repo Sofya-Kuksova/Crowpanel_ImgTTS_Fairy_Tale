@@ -10,6 +10,7 @@ class AudioPlayer
 public:
     bool init(esp_expander::Base* io_expander, size_t frame_size);
     bool write(const uint8_t* data, size_t bytes, size_t ticks_to_wait);
+    void mark_stream_ended();
     bool isOn();
     bool enable();
     bool disable();
